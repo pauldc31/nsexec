@@ -13,7 +13,6 @@ executable('ns_exec', 'src/ns_exec.c'
 
 pkgconfig = find_program('pkg-config')
 runcmd = run_command(pkgconfig
-	, '--define-variable='
 	, '--variable=completionsdir'
 	, 'bash-completion')
 
