@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "inmpuUve:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "hinmpuUve:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
