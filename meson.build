@@ -7,9 +7,10 @@ add_project_link_arguments('-fstack-protector-strong', '-flto'
 		, '-Wl,-z,relro,-z,now', language: 'c')
 
 dep_libcap = dependency('libcap')
+dep_libnl = dependency('libnl-cli-3.0')
 executable('ns_exec', 'src/ns_exec.c'
 	, install: true
-	, dependencies: [dep_libcap])
+	, dependencies: [dep_libcap, dep_libnl])
 
 pkgconfig = find_program('pkg-config')
 runcmd = run_command(pkgconfig

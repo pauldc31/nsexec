@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
+#include <libnl3/netlink/route/link.h>
+#include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -34,6 +36,17 @@ char **global_argv;
 __attribute__((unused))
 static int ret;
 
+static void fatalErrMsg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+
+	exit(EXIT_FAILURE);
+}
+
 void fatalErr(const char *msg)
 {
 	perror(msg);
@@ -49,6 +62,36 @@ static inline void verbose(char *fmt, ...)
 		vprintf(fmt, ap);
 		va_end(ap);
 	}
+}
+
+static void setup_lo(void)
+{
+	struct nl_sock *sk;
+	struct rtnl_link *link, *change;
+	struct nl_cache *cache;
+	int err;
+
+	sk = nl_socket_alloc();
+	err = nl_connect(sk, NETLINK_ROUTE);
+	if (err)
+		fatalErrMsg("Error; Unable to connect to netlink route: %s\n",
+				nl_geterror(err));
+
+	if (rtnl_link_alloc_cache(sk, AF_UNSPEC, &cache))
+		fatalErrMsg("Error: Unable to build link cache: %s\n",
+				nl_geterror(err));
+
+	link = rtnl_link_get_by_name(cache, "lo");
+	if (!link)
+		fatalErrMsg("Error: Could not find loopback interface\n");
+
+	change = rtnl_link_alloc();
+	rtnl_link_set_flags(change, IFF_UP);
+
+	err = rtnl_link_change(sk, link, change, 0);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to turn lo interface up: %s\n",
+				nl_geterror(err));
 }
 
 static void setup_mountns(void)
@@ -146,11 +189,14 @@ static void set_maps(pid_t pid, const char *map) {
 
 static int child_func(void *arg)
 {
-	(void)arg;
 	const char *argv0;
 	cap_t cap = cap_get_proc();
 
 	setup_mountns();
+
+	/* only active loopack is a new network namespace is created */
+	if (*(int *)arg & CLONE_NEWNET)
+		setup_lo();
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
 		fatalErr("prctl PR_SET_PRDEATHSIG");
