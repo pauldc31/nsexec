@@ -12,6 +12,10 @@ executable('ns_exec', 'src/ns_exec.c'
 	, install: true
 	, dependencies: [dep_libcap, dep_libnl])
 
+executable('nsexec_nic', 'src/nsexec_nic.c'
+	, install: true
+	, dependencies: [dep_libnl])
+
 pkgconfig = find_program('pkg-config')
 runcmd = run_command(pkgconfig
 	, '--variable=completionsdir'

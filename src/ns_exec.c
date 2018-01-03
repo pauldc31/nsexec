@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include <limits.h>
 #include <libnl3/netlink/route/link.h>
+#include <libnl3/netlink/route/link/veth.h>
 #include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
@@ -32,6 +33,8 @@ static int wait_fd = -1;
 static char val = 1;
 const char *exec_file = NULL;
 char **global_argv;
+
+static struct nl_sock *sk;
 
 __attribute__((unused))
 static int ret;
@@ -64,20 +67,20 @@ static inline void verbose(char *fmt, ...)
 	}
 }
 
-static void setup_lo(void)
+static void setup_network(void)
 {
-	struct nl_sock *sk;
-	struct rtnl_link *link, *change;
+	struct rtnl_link *link, *eth, *change;
 	struct nl_cache *cache;
 	int err;
 
 	sk = nl_socket_alloc();
 	err = nl_connect(sk, NETLINK_ROUTE);
-	if (err)
-		fatalErrMsg("Error; Unable to connect to netlink route: %s\n",
+	if (err < 0)
+		fatalErrMsg("Error: Unable to connect netlink route: %s\n",
 				nl_geterror(err));
 
-	if (rtnl_link_alloc_cache(sk, AF_UNSPEC, &cache))
+	err = rtnl_link_alloc_cache(sk, AF_UNSPEC, &cache);
+	if (err < 0)
 		fatalErrMsg("Error: Unable to build link cache: %s\n",
 				nl_geterror(err));
 
@@ -90,15 +93,49 @@ static void setup_lo(void)
 
 	err = rtnl_link_change(sk, link, change, 0);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to turn lo interface up: %s\n",
+		fatalErrMsg("Error: Unable to activate loopback: \n",
 				nl_geterror(err));
+
+	eth = rtnl_link_get_by_name(cache, "eth0");
+	if (!eth)
+		fatalErrMsg("Error: Unable to find eth0\n");
+
+	err = rtnl_link_change(sk, eth, change, 0);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to activate eth0: %s\n",
+				nl_geterror(err));
+
+	nl_close(sk);
+}
+
+static void setup_bridge(int child_pid)
+{
+	pid_t pid;
+	char *binpath = "/usr/bin/nsexec_nic";
+	char strpid[15];
+	int wstatus;
+
+	pid = fork();
+	switch (pid) {
+	case -1:
+		fatalErr("fork bridge");
+		/* fall-thru */
+	case 0:
+		if (snprintf(strpid, sizeof(strpid), "%d", child_pid) < 0)
+			fatalErr("strnpid child_pid");
+		execlp(binpath, binpath, "create", strpid, NULL);
+		fatalErr("execlp bridge failed\n");
+		/* fall-thru */
+	default:
+		if (waitpid(pid, &wstatus, 0) == -1)
+			fatalErr("waitpid bridge\n");
+		if (!WIFEXITED(wstatus))
+			fatalErrMsg("bridge process terminated anormally\n");
+	}
 }
 
 static void setup_mountns(void)
 {
-	/* blocked by parent process */
-	ret = read(wait_fd, &val, sizeof(char));
-
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
@@ -179,7 +216,7 @@ static void set_maps(pid_t pid, const char *map) {
 
 	fd = open(path, O_RDWR);
 	if (fd == -1)
-		fatalErr("open");
+		fatalErr(path);
 
 	data_len = strlen(data);
 
@@ -190,13 +227,18 @@ static void set_maps(pid_t pid, const char *map) {
 static int child_func(void *arg)
 {
 	const char *argv0;
+	int child_args = *(int *)arg;
 	cap_t cap = cap_get_proc();
+
+	/* blocked by parent process */
+	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
+		ret = read(wait_fd, &val, sizeof(char));
 
 	setup_mountns();
 
 	/* only active loopack is a new network namespace is created */
-	if (*(int *)arg & CLONE_NEWNET)
-		setup_lo();
+	if (child_args & CLONE_NEWNET)
+		setup_network();
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
 		fatalErr("prctl PR_SET_PRDEATHSIG");
@@ -208,6 +250,10 @@ static int child_func(void *arg)
 	verbose("PID: %d, PPID: %d\n", getpid(), getppid());
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
 	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
+
+	/* avoid acquiring capabilities form the executable file on execlp */
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
+		fatalErr("PR_SET_NO_NEW_PRIVS");
 
 	if (execvp(argv0, global_argv) == -1)
 		fatalErr("execvp");
@@ -293,10 +339,6 @@ int main(int argc, char **argv)
 	/* use the unparsed options in execvp later */
 	global_argv = argv + optind;
 
-	/* avoid acquiring capabilities form the executable file on execlp */
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
-		fatalErr("PR_SET_NO_NEW_PRIVS");
-
 	/* prepare sandbox base dir */
 	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
 		fatalErr("prepare_tmpfs sprintf");
@@ -304,7 +346,7 @@ int main(int argc, char **argv)
 	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
 		fatalErr("mkdir base_path err");
 
-	if (child_args & CLONE_NEWUSER) {
+	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET) {
 		wait_fd = eventfd(0, EFD_CLOEXEC);
 		if (wait_fd == -1)
 			fatalErr("eventfd");
@@ -319,8 +361,13 @@ int main(int argc, char **argv)
 	if (child_args & CLONE_NEWUSER) {
 		set_maps(pid, "uid_map");
 		set_maps(pid, "gid_map");
-		ret = write(wait_fd, &val, 8);
 	}
+
+	if (child_args & CLONE_NEWNET)
+		setup_bridge(pid);
+
+	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
+		ret = write(wait_fd, &val, 8);
 
 	if (waitpid(pid, NULL, 0) == -1)
 		fatalErr("waitpid");

@@ -1,0 +1,107 @@
+#include <net/if.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <libnl3/netlink/route/link.h>
+#include <libnl3/netlink/route/link/veth.h>
+
+static void usage()
+{
+	fprintf(stderr, "Usage: <create|destroy> pid\n");
+	exit(EXIT_FAILURE);
+}
+
+static int convert_pid(char *pid)
+{
+	int local_pid;
+	if (sscanf(pid, "%d", &local_pid) != 1)
+		return -1;
+
+	return local_pid;
+}
+
+static void create(char *pid)
+{
+	struct nl_sock *sk;
+	struct nl_cache *cache;
+	struct rtnl_link *link, *change, *bridge;
+	int int_pid, err;
+	char veth_name[15];
+
+	int_pid = convert_pid(pid);
+	if (int_pid == -1) {
+		fprintf(stderr, "Invalid pid\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (snprintf(veth_name, sizeof(veth_name), "veth%s", pid) < 0) {
+		fprintf(stderr, "Error when setting veth name\n");
+		exit(EXIT_FAILURE);
+	}
+
+	sk = nl_socket_alloc();
+	err = nl_connect(sk, NETLINK_ROUTE);
+	if (err < 0) {
+		fprintf(stderr, "Error: Unable to connect to netlink route: %s\n",
+				nl_geterror(err));
+		exit(EXIT_FAILURE);
+	}
+
+	err = rtnl_link_veth_add(sk, veth_name, "eth0", int_pid);
+	if (err < 0) {
+		fprintf(stderr, "Error: Unable to create veth pair: %s\n",
+				nl_geterror(err));
+		exit(EXIT_FAILURE);
+	}
+
+	err = rtnl_link_alloc_cache(sk, AF_UNSPEC, &cache);
+	if (err < 0) {
+		fprintf(stderr, "Error: Unable to allocate cache: %s\n",
+				nl_geterror(err));
+		exit(EXIT_FAILURE);
+	}
+
+	link = rtnl_link_get_by_name(cache, veth_name);
+	if (!link) {
+		fprintf(stderr, "Error: Unable to find: %s\n", veth_name);
+		exit(EXIT_FAILURE);
+	}
+
+	bridge = rtnl_link_get_by_name(cache, "virbr0");
+	if (!bridge) {
+		fprintf(stderr, "Error: Unable to find virbr0\n");
+		exit(EXIT_FAILURE);
+	}
+
+	err = rtnl_link_enslave(sk, bridge, link);
+	if (err < 0) {
+		fprintf(stderr, "Error: could not enslave %s into virbr0: %s\b",
+				veth_name, nl_geterror(err));
+		exit(EXIT_FAILURE);
+	}
+
+	change = rtnl_link_alloc();
+	rtnl_link_set_flags(change, IFF_UP);
+
+	err = rtnl_link_change(sk, link, change, 0);
+	if (err < 0) {
+		fprintf(stderr, "Error: Unable to activate %s: %s\n",
+				veth_name, nl_geterror(err));
+		exit(EXIT_FAILURE);
+	}
+
+	nl_close(sk);
+}
+
+int main(int argc, char **argv)
+{
+	if (argc < 3)
+		usage();
+
+	if (!strncmp(argv[1], "create", 6)) {
+		create(argv[2]);
+	} else {
+		usage();
+	}
+
+	return 0;
+}
