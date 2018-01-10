@@ -4,8 +4,8 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
-#include <libnl3/netlink/route/link.h>
-#include <libnl3/netlink/route/link/veth.h>
+#include <netlink/route/link.h>
+#include <netlink/route/link/veth.h>
 #include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
