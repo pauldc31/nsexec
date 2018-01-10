@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_ns_exec() {
+_nsexec() {
 	_init_completion || return
 
 	local boolean_options="
@@ -22,4 +22,4 @@ _ns_exec() {
 	return 0
 }
 
-complete -F _ns_exec ns_exec
+complete -F _nsexec nsexec
