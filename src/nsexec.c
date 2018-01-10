@@ -4,8 +4,9 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
+#include <netlink/netlink.h>
+#include <netlink/route/addr.h>
 #include <netlink/route/link.h>
-#include <netlink/route/link/veth.h>
 #include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
@@ -70,6 +71,8 @@ static void setup_network(void)
 	struct nl_sock *sk;
 	struct rtnl_link *link, *eth, *change;
 	struct nl_cache *cache;
+	struct nl_addr *addr;
+	struct rtnl_addr *rt_addr;
 	int err;
 
 	sk = nl_socket_alloc();
@@ -101,8 +104,26 @@ static void setup_network(void)
 
 	err = rtnl_link_change(sk, eth, change, 0);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to activate eth0: %s\n",
+		fatalErrMsg("Error: Unable to activate eth0: \n",
 				nl_geterror(err));
+
+	rt_addr = rtnl_addr_alloc();
+
+	err = nl_addr_parse("192.168.100.100", AF_INET, &addr);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
+				nl_geterror(err));
+
+	rtnl_addr_set_prefixlen(rt_addr, 24);
+	rtnl_addr_set_ifindex(rt_addr, rtnl_link_name2i(cache, "eth0"));
+	rtnl_addr_set_scope(rt_addr, RT_SCOPE_HOST);
+	rtnl_addr_set_label(rt_addr, "eth0");
+
+	err = rtnl_addr_add(sk, rt_addr, 0);
+	if (err < 0)
+		fatalErrMsg("Error: Unable add address: %s\n",
+				nl_geterror(err));
+
 
 	nl_close(sk);
 }

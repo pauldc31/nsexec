@@ -8,7 +8,7 @@ add_project_link_arguments('-fstack-protector-strong', '-flto'
 
 dep_libcap = dependency('libcap')
 dep_libnl = dependency('libnl-route-3.0')
-executable('ns_exec', 'src/ns_exec.c'
+executable('nsexec', 'src/nsexec.c'
 	, install: true
 	, dependencies: [dep_libcap, dep_libnl])
 
@@ -22,5 +22,5 @@ runcmd = run_command(pkgconfig
 	, 'bash-completion')
 
 # assume bash-complete is installed and working
-install_data(sources: 'completions/bash/ns_exec'
+install_data(sources: 'completions/bash/nsexec'
 	, install_dir: runcmd.stdout().strip())
