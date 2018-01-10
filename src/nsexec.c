@@ -34,8 +34,6 @@ static char val = 1;
 const char *exec_file = NULL;
 char **global_argv;
 
-static struct nl_sock *sk;
-
 __attribute__((unused))
 static int ret;
 
@@ -69,6 +67,7 @@ static inline void verbose(char *fmt, ...)
 
 static void setup_network(void)
 {
+	struct nl_sock *sk;
 	struct rtnl_link *link, *eth, *change;
 	struct nl_cache *cache;
 	int err;
