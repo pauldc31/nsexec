@@ -73,6 +73,7 @@ static void setup_network(void)
 	struct nl_cache *cache;
 	struct nl_addr *addr;
 	struct rtnl_addr *rt_addr;
+	int ifindex;
 	int err;
 
 	sk = nl_socket_alloc();
@@ -107,23 +108,36 @@ static void setup_network(void)
 		fatalErrMsg("Error: Unable to activate eth0: \n",
 				nl_geterror(err));
 
+	err = nl_cache_refill(sk, cache);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to refill cache: \n",
+				nl_geterror(err));
+
 	rt_addr = rtnl_addr_alloc();
 
-	err = nl_addr_parse("192.168.100.100", AF_INET, &addr);
+	err = nl_addr_parse("10.0.3.111/24", AF_INET, &addr);
 	if (err < 0)
 		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
 				nl_geterror(err));
 
-	rtnl_addr_set_prefixlen(rt_addr, 24);
-	rtnl_addr_set_ifindex(rt_addr, rtnl_link_name2i(cache, "eth0"));
-	rtnl_addr_set_scope(rt_addr, RT_SCOPE_HOST);
-	rtnl_addr_set_label(rt_addr, "eth0");
+	ifindex = rtnl_link_name2i(cache, "eth0");
+	if (ifindex == 0)
+		fatalErrMsg("Error: could not find eth0 index\n");
+
+	rtnl_addr_set_ifindex(rt_addr, ifindex);
+	rtnl_addr_set_local(rt_addr, addr);
+
+	err = nl_addr_parse("10.0.3.255", AF_INET, &addr);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
+				nl_geterror(err));
+
+	rtnl_addr_set_broadcast(rt_addr, addr);
 
 	err = rtnl_addr_add(sk, rt_addr, 0);
 	if (err < 0)
 		fatalErrMsg("Error: Unable add address: %s\n",
 				nl_geterror(err));
-
 
 	nl_close(sk);
 }
