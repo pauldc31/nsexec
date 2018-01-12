@@ -7,6 +7,7 @@
 #include <netlink/netlink.h>
 #include <netlink/route/addr.h>
 #include <netlink/route/link.h>
+#include <netlink/route/route.h>
 #include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
@@ -73,6 +74,8 @@ static void setup_network(void)
 	struct nl_cache *cache;
 	struct nl_addr *addr;
 	struct rtnl_addr *rt_addr;
+	struct rtnl_route *route;
+	struct rtnl_nexthop *nh;
 	int ifindex;
 	int err;
 
@@ -115,7 +118,7 @@ static void setup_network(void)
 
 	rt_addr = rtnl_addr_alloc();
 
-	err = nl_addr_parse("10.0.3.111/24", AF_INET, &addr);
+	err = nl_addr_parse("192.168.122.111/24", AF_INET, &addr);
 	if (err < 0)
 		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
 				nl_geterror(err));
@@ -126,8 +129,9 @@ static void setup_network(void)
 
 	rtnl_addr_set_ifindex(rt_addr, ifindex);
 	rtnl_addr_set_local(rt_addr, addr);
+	rtnl_addr_set_family(rt_addr, AF_INET);
 
-	err = nl_addr_parse("10.0.3.255", AF_INET, &addr);
+	err = nl_addr_parse("192.168.122.255", AF_INET, &addr);
 	if (err < 0)
 		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
 				nl_geterror(err));
@@ -137,6 +141,40 @@ static void setup_network(void)
 	err = rtnl_addr_add(sk, rt_addr, 0);
 	if (err < 0)
 		fatalErrMsg("Error: Unable add address: %s\n",
+				nl_geterror(err));
+
+	nh = rtnl_route_nh_alloc();
+	rtnl_route_nh_set_ifindex(nh, ifindex);
+
+	err = nl_addr_parse("192.168.122.1", AF_INET, &addr);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
+				nl_geterror(err));
+
+	rtnl_route_nh_set_gateway(nh, addr);
+
+	route = rtnl_route_alloc();
+	rtnl_route_set_iif(route, AF_INET);
+	rtnl_route_set_scope(route, RT_SCOPE_UNIVERSE);
+	rtnl_route_set_table(route, RT_TABLE_MAIN);
+	rtnl_route_set_protocol(route, RTPROT_BOOT);
+	rtnl_route_set_priority(route, 0);
+	rtnl_route_set_type(route, RTN_UNICAST);
+	rtnl_route_add_nexthop(route, nh);
+
+	err = nl_addr_parse("default", AF_INET, &addr);
+	if (err < 0)
+		fatalErrMsg("Error: Unable to parse IPv4 dst: %s\n",
+				nl_geterror(err));
+
+	err = rtnl_route_set_dst(route, addr);
+	if (err < 0)
+		fatalErrMsg("Error: could not set route dst: %s\n",
+				nl_geterror(err));
+
+	err = rtnl_route_add(sk, route, 0);
+	if (err < 0)
+		fatalErrMsg("Error: could not add route: %s\n",
 				nl_geterror(err));
 
 	nl_close(sk);
