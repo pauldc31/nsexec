@@ -339,7 +339,7 @@ static int child_func(void *arg)
 
 	setup_mountns();
 
-	/* only active loopack is a new network namespace is created */
+	/* only configure network is a new netns is created */
 	if (c_args & CLONE_NEWNET)
 		setup_network();
 
