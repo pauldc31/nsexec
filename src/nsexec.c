@@ -36,7 +36,6 @@ static int wait_fd = -1;
 static char val = 1;
 /* vethXXXX */
 static char veth_h[9] = {}, veth_ns[9] = {};
-static uuid_t gen_uuid;
 const char *exec_file = NULL;
 char **global_argv;
 
@@ -44,9 +43,6 @@ enum {
 	CREATE_BRIDGE,
 	DELETE_BRIDGE
 };
-
-__attribute__((unused))
-static int ret;
 
 static void fatalErrMsg(const char *fmt, ...)
 {
@@ -78,6 +74,7 @@ static inline void verbose(char *fmt, ...)
 
 static void setup_veth_names(void)
 {
+	static uuid_t gen_uuid;
 	char uuid_parsed[37];
 
 	uuid_generate_random(gen_uuid);
@@ -337,7 +334,8 @@ static int child_func(void *arg)
 
 	/* blocked by parent process */
 	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
-		ret = read(wait_fd, &val, sizeof(char));
+		if (read(wait_fd, &val, sizeof(char)) < 0)
+			fatalErr("read error before setting mountns");
 
 	setup_mountns();
 
@@ -475,7 +473,8 @@ int main(int argc, char **argv)
 		setup_bridge(pid, CREATE_BRIDGE);
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
-		ret = write(wait_fd, &val, 8);
+		if (write(wait_fd, &val, 8) < 0)
+			fatalErr("write error on signaling child process");
 
 	if (waitpid(pid, NULL, 0) == -1)
 		fatalErr("waitpid");
