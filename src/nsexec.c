@@ -36,6 +36,11 @@ static char val = 1;
 const char *exec_file = NULL;
 char **global_argv;
 
+enum {
+	CREATE_BRIDGE,
+	DELETE_BRIDGE
+};
+
 __attribute__((unused))
 static int ret;
 
@@ -180,7 +185,7 @@ static void setup_network(void)
 	nl_close(sk);
 }
 
-static void setup_bridge(int child_pid)
+static void setup_bridge(int child_pid, int op)
 {
 	pid_t pid;
 	char *binpath = "/usr/bin/nsexec_nic";
@@ -195,7 +200,11 @@ static void setup_bridge(int child_pid)
 	case 0:
 		if (snprintf(strpid, sizeof(strpid), "%d", child_pid) < 0)
 			fatalErr("strnpid child_pid");
-		execlp(binpath, binpath, "create", strpid, NULL);
+		if (op == CREATE_BRIDGE)
+			execlp(binpath, binpath, "create", strpid, NULL);
+		else if (op == DELETE_BRIDGE)
+			execlp(binpath, binpath, "delete", strpid, NULL);
+
 		fatalErr("execlp bridge failed\n");
 		/* fall-thru */
 	default:
@@ -436,13 +445,16 @@ int main(int argc, char **argv)
 	}
 
 	if (child_args & CLONE_NEWNET)
-		setup_bridge(pid);
+		setup_bridge(pid, CREATE_BRIDGE);
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
 		ret = write(wait_fd, &val, 8);
 
 	if (waitpid(pid, NULL, 0) == -1)
 		fatalErr("waitpid");
+
+	if (child_args & CLONE_NEWNET)
+		setup_bridge(pid, DELETE_BRIDGE);
 
 	return 0;
 }
