@@ -332,17 +332,17 @@ static void set_maps(pid_t pid, const char *map) {
 static int child_func(void *arg)
 {
 	const char *argv0;
-	int child_args = *(int *)arg;
+	int c_args = *(int *)arg;
 	cap_t cap = cap_get_proc();
 
 	/* blocked by parent process */
-	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
+	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
 		ret = read(wait_fd, &val, sizeof(char));
 
 	setup_mountns();
 
 	/* only active loopack is a new network namespace is created */
-	if (child_args & CLONE_NEWNET)
+	if (c_args & CLONE_NEWNET)
 		setup_network();
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
