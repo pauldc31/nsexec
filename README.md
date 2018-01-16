@@ -10,8 +10,9 @@ Linux containers, by using the same ideas an techniques used by both project.
 
 Currently nsexec has two dependencies:
 
-	* libcap
-	* libnl-route-3.0
+	libcap
+	libnl-route-3.0
+	libuuid
 
 nsexec uses meson to as build system. To build and install nsexec:
 
