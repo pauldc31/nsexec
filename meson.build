@@ -1,6 +1,9 @@
 project('nsexec', 'c'
 	, default_options: ['prefix=/usr'])
 add_project_arguments(['-Wall', '-Werror', '-Wextra'
+		, '-Wduplicated-cond', '-Wduplicated-branches' , '-Wlogical-op'
+		, '-Wnull-dereference', '-Wjump-misses-init', '-Wshadow'
+		, '-Wformat=2'
 		, '-Og', '-fstack-protector-strong', '-D_FORTIFY_SOURCE=2'
 		], language: 'c')
 add_project_link_arguments('-fstack-protector-strong', '-flto'
