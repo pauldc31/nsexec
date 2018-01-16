@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 
 #define STACK_SIZE (1024 * 1024)
 static char child_stack[STACK_SIZE];
@@ -33,6 +34,9 @@ static char base_path[PATH_MAX];
 static int enable_verbose = 0;
 static int wait_fd = -1;
 static char val = 1;
+/* vethXXXX */
+static char veth_h[9] = {}, veth_ns[9] = {};
+static uuid_t gen_uuid;
 const char *exec_file = NULL;
 char **global_argv;
 
@@ -72,6 +76,22 @@ static inline void verbose(char *fmt, ...)
 	}
 }
 
+static void setup_veth_names(void)
+{
+	char uuid_parsed[37];
+
+	uuid_generate_random(gen_uuid);
+	uuid_unparse(gen_uuid, uuid_parsed);
+
+	/* copy just the first foud characters from uuid for veth_h */
+	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
+		fatalErr("building veth_h");
+
+	/* copy the next four characters from the start of the uuid */
+	if (snprintf(veth_ns, 9, "veth%s", uuid_parsed + 4) < 0)
+		fatalErr("building veth_ns");
+}
+
 static void setup_network(void)
 {
 	struct nl_sock *sk;
@@ -107,14 +127,17 @@ static void setup_network(void)
 		fatalErrMsg("Error: Unable to activate loopback: \n",
 				nl_geterror(err));
 
-	eth = rtnl_link_get_by_name(cache, "eth0");
+	eth = rtnl_link_get_by_name(cache, veth_ns);
 	if (!eth)
-		fatalErrMsg("Error: Unable to find eth0\n");
+		fatalErrMsg("Error: Unable to find %s\n", veth_ns);
+
+	/* rename veth_ns to eth0 inside the ns */
+	rtnl_link_set_name(change, "eth0");
 
 	err = rtnl_link_change(sk, eth, change, 0);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to activate eth0: \n",
-				nl_geterror(err));
+		fatalErrMsg("Error: Unable to activate/rename %s to eth0: \n",
+				veth_ns, nl_geterror(err));
 
 	err = nl_cache_refill(sk, cache);
 	if (err < 0)
@@ -201,9 +224,10 @@ static void setup_bridge(int child_pid, int op)
 		if (snprintf(strpid, sizeof(strpid), "%d", child_pid) < 0)
 			fatalErr("strnpid child_pid");
 		if (op == CREATE_BRIDGE)
-			execlp(binpath, binpath, "create", strpid, NULL);
+			execlp(binpath, binpath, "create", strpid, veth_h,
+					veth_ns, NULL);
 		else if (op == DELETE_BRIDGE)
-			execlp(binpath, binpath, "delete", strpid, NULL);
+			execlp(binpath, binpath, "delete", veth_h, NULL);
 
 		fatalErr("execlp bridge failed\n");
 		/* fall-thru */
@@ -432,6 +456,9 @@ int main(int argc, char **argv)
 		if (wait_fd == -1)
 			fatalErr("eventfd");
 	}
+
+	if (child_args & CLONE_NEWNET)
+		setup_veth_names();
 
 	/* stack grows downward */
 	pid = clone(child_func, child_stack + STACK_SIZE, child_args
