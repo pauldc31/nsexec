@@ -8,9 +8,11 @@ add_project_link_arguments('-fstack-protector-strong', '-flto'
 
 dep_libcap = dependency('libcap')
 dep_libnl = dependency('libnl-route-3.0')
+dep_uuid = dependency('uuid')
+
 executable('nsexec', 'src/nsexec.c'
 	, install: true
-	, dependencies: [dep_libcap, dep_libnl])
+	, dependencies: [dep_libcap, dep_libnl, dep_uuid])
 
 executable('nsexec_nic', 'src/nsexec_nic.c'
 	, install: true
