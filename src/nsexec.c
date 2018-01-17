@@ -33,7 +33,7 @@ static int child_args;
 static char base_path[PATH_MAX];
 static int enable_verbose = 0;
 static int wait_fd = -1;
-static char val = 1;
+static uint64_t val = 1;
 /* vethXXXX */
 static char veth_h[9] = {}, veth_ns[9] = {};
 const char *exec_file = NULL;
@@ -334,7 +334,7 @@ static int child_func(void *arg)
 
 	/* blocked by parent process */
 	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
-		if (read(wait_fd, &val, sizeof(char)) < 0)
+		if (read(wait_fd, &val, sizeof(val)) < 0)
 			fatalErr("read error before setting mountns");
 
 	setup_mountns();
@@ -473,7 +473,7 @@ int main(int argc, char **argv)
 		setup_bridge(pid, CREATE_BRIDGE);
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
-		if (write(wait_fd, &val, 8) < 0)
+		if (write(wait_fd, &val, sizeof(val)) < 0)
 			fatalErr("write error on signaling child process");
 
 	if (waitpid(pid, NULL, 0) == -1)
