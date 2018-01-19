@@ -20,10 +20,6 @@ nsexec uses meson to as build system. To build and install nsexec:
 	cd build
 	ninja
 	sudo ninja install
-	sudo chmod +s /usr/bin/nsexec_nic
-
-nsexec_nic is a binary that is responsible to manage network interfaces, so it
-needs to be executed as root (or have CAP_NET_ADMIN).
 
 ### Using nsexec
 ----------------

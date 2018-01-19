@@ -27,5 +27,7 @@ runcmd = run_command(pkgconfig
 	, 'bash-completion')
 
 # assume bash-complete is installed and working
-install_data(sources: 'completions/bash/nsexec'
+install_data(sources: 'data/completions/bash/nsexec'
 	, install_dir: runcmd.stdout().strip())
+
+meson.add_install_script('data/post-install.sh')
