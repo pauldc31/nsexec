@@ -1,6 +1,6 @@
 project('nsexec', 'c'
 	, default_options: ['prefix=/usr'])
-add_project_arguments(['-Wall', '-Werror', '-Wextra', '-Wshadow', '-Wformat=2'
+add_project_arguments(['-Werror', '-Wextra', '-Wshadow', '-Wformat=2'
 		, '-Og', '-fstack-protector-strong', '-D_FORTIFY_SOURCE=2'
 		], language: 'c')
 
