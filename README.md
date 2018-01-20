@@ -8,7 +8,7 @@ Linux containers, by using the same ideas an techniques used by both project.
 ### building
 ------------
 
-Currently nsexec has two dependencies:
+Dependencies:
 
 	libcap
 	libnl-route-3.0
@@ -24,6 +24,6 @@ nsexec uses meson to as build system. To build and install nsexec:
 ### Using nsexec
 ----------------
 
-Where is a small example of how to execute nsexec with all namespaces active:
+Where is a small example of how to start a new bash with all namespaces active:
 
-	nsexec --unshare-all --exec-file bash
+	nsexec --unshare-all
