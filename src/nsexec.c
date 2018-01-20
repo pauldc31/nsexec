@@ -44,6 +44,7 @@ enum {
 	DELETE_BRIDGE
 };
 
+__attribute__((format (printf, 1, 2)))
 static void fatalErrMsg(const char *fmt, ...)
 {
 	va_list ap;
@@ -61,6 +62,7 @@ void fatalErr(const char *msg)
 	exit(EXIT_FAILURE);
 }
 
+__attribute__((format (printf, 1, 2)))
 static inline void verbose(char *fmt, ...)
 {
 	va_list ap;
@@ -121,7 +123,7 @@ static void setup_network(void)
 
 	err = rtnl_link_change(sk, link, change, 0);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to activate loopback: \n",
+		fatalErrMsg("Error: Unable to activate loopback: %s\n",
 				nl_geterror(err));
 
 	eth = rtnl_link_get_by_name(cache, veth_ns);
@@ -133,12 +135,12 @@ static void setup_network(void)
 
 	err = rtnl_link_change(sk, eth, change, 0);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to activate/rename %s to eth0: \n",
+		fatalErrMsg("Error: Unable to activate/rename %s to eth0: %s\n",
 				veth_ns, nl_geterror(err));
 
 	err = nl_cache_refill(sk, cache);
 	if (err < 0)
-		fatalErrMsg("Error: Unable to refill cache: \n",
+		fatalErrMsg("Error: Unable to refill cache: %s\n",
 				nl_geterror(err));
 
 	rt_addr = rtnl_addr_alloc();
