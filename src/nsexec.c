@@ -284,6 +284,22 @@ static void setup_mountns(void)
 	if (chdir("/") == -1)
 		fatalErr("chdir /");
 
+	/* bind mount new resolv.conf pointing to the bridge connection */
+	if (child_args & CLONE_NEWNET) {
+		int fd = open("/tmp/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+		if ( fd == -1)
+			fatalErr("open resolv.conf wronly");
+
+		const char *nameserver = "nameserver 192.168.122.1\n";
+		if (write(fd, nameserver, strlen(nameserver)) == -1)
+			fatalErr("write resolve.conf");
+
+		// define a per-user resolv.conf using the bridge address
+		// https://serverfault.com/questions/510027/how-to-set-a-per-user-resolv-conf
+		if (mount("/tmp/resolv.conf", "/etc/resolv.conf", NULL, MS_BIND, NULL) < 0)
+			fatalErr("mount bind resolv.conf");
+	}
+
 	/* if newpid was specified, mount a new proc, or let the /proc mounted
 	 * by rootfs */
 	if (child_args & CLONE_NEWPID)
