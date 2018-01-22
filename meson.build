@@ -1,26 +1,30 @@
 project('nsexec', 'c'
-	, default_options: ['prefix=/usr'])
-add_project_arguments(['-Werror', '-Wextra', '-Wshadow', '-Wformat=2'
-		, '-Og', '-fstack-protector-strong', '-D_FORTIFY_SOURCE=2'
-		], language: 'c')
+	, default_options: [
+		'prefix=/usr',
+		'sysconfdir=/etc',
+	])
 
-compiler = meson.get_compiler('c')
+cc = meson.get_compiler('c')
 
-if compiler.has_argument('-Wduplicated-cond')
-	add_project_arguments('-Wduplicated-cond', language: 'c')
-endif
+c_args = [
+	'-Wextra',
+	'-Werror',
+	'-Wshadow',
+	'-Wformat=2',
+	'-fstack-protector-strong',
+	'-D_FORTIFY_SOURCE=2',
+	'-Wduplicated-cond',
+	'-Wduplicated-branches',
+	'-Wlogical-op',
+	'-Wjump-misses-init',
+	'-O2'
+]
 
-if compiler.has_argument('-Wduplicated-branches')
-	add_project_arguments('-Wduplicated-branches', language: 'c')
-endif
-
-if compiler.has_argument('-Wlogical-op')
-	add_project_arguments('-Wlogical-op', language: 'c')
-endif
-
-if compiler.has_argument('-Wjump-misses-init')
-	add_project_arguments('-Wjump-misses-init', language: 'c')
-endif
+foreach arg : c_args
+	if cc.has_argument(arg)
+		add_project_arguments(arg, language: 'c')
+	endif
+endforeach
 
 add_project_link_arguments('-fstack-protector-strong', '-flto'
 		, '-Wl,-z,relro,-z,now', language: 'c')
