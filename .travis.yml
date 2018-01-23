@@ -4,7 +4,7 @@ compiler:
  - clang
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install -qq ninja libcap-dev uuid-dev libnl-route-3-dev python3-pip python-dev build-essential
+ - sudo apt-get install -qq ninja libcap-ng-dev uuid-dev libnl-route-3-dev python3-pip python-dev build-essential
  - sudo pip3 install --upgrade pip
  - sudo pip3 install meson
 script:
