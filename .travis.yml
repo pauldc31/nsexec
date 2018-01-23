@@ -2,6 +2,10 @@ language: c
 compiler:
  - gcc
  - clang
+before_install:
+ - sudo apt-get update -qq
+ - sudo apt-get install -qq ninja libcap-dev uuid-dev libnl-route-3-dev
+script:
 script:
  - meson build
  - cd build
