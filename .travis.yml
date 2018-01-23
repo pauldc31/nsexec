@@ -1,0 +1,9 @@
+language: c
+compiler:
+ - gcc
+ - clang
+script:
+ - meson build
+ - cd build
+ - ninja
+ - ninja install
