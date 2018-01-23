@@ -1,15 +1,18 @@
-dist: xenial
 language: c
+services:
+ - docker
 compiler:
  - gcc
  - clang
+
+addons:
+   apt:
+      packages:
+         - docker-ce
+
 before_install:
- - sudo apt-get update -qq
- - sudo apt-get install -qq ninja libcap-ng-dev uuid-dev libnl-route-3-dev python3-pip python-dev build-essential
- - sudo pip3 install --upgrade pip
- - sudo pip3 install meson
+ - docker run -dti --name travis_build fedora:latest bash
+ - docker exec -ti travis_build bash -c "dnf install meson ninja-build gcc clang libuuid-devel libnl3-devel libcap-devel"
 script:
- - meson build
- - cd build
- - ninja
- - ninja install
+ - docker exec -ti travis_build meson build
+ - docker exec -ti travis_build ninja -C build
