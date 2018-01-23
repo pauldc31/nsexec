@@ -29,9 +29,13 @@ endforeach
 add_project_link_arguments('-fstack-protector-strong', '-flto'
 		, '-Wl,-z,relro,-z,now', language: 'c')
 
-dep_libcap = dependency('libcap')
 dep_libnl = dependency('libnl-route-3.0')
 dep_uuid = dependency('uuid')
+dep_libcap = dependency('libcap', required: false)
+
+if not dep_libcap.found()
+	dep_libcap = dependency('libcap-ng')
+endif
 
 executable('nsexec', 'src/nsexec.c'
 	, install: true
