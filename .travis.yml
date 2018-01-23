@@ -1,9 +1,7 @@
 language: c
+
 services:
  - docker
-compiler:
- - gcc
- - clang
 
 addons:
    apt:
@@ -11,8 +9,8 @@ addons:
          - docker-ce
 
 before_install:
- - docker run -dti --name travis_build fedora:latest bash
- - docker exec -ti travis_build bash -c "dnf install meson ninja-build gcc clang libuuid-devel libnl3-devel libcap-devel"
+ - docker build -t nsexec -f travis-ci/Dockerfile .
+
 script:
- - docker exec -ti travis_build meson build
- - docker exec -ti travis_build ninja -C build
+ - docker run -d nsexec /bin/bash -c "cd nsexec; meson build; ninja -C build"
+ - docker run -d nsexec /bin/bash -c "cd nsexec; CC=clang meson build2; ninja -C build2"
