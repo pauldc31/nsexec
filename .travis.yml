@@ -9,7 +9,7 @@ addons:
          - docker-ce
 
 before_install:
- - docker build -t nsexec -f travis-ci/Dockerfile .
+ - docker build -t nsexec -f data/travis-ci/Dockerfile .
 
 script:
  - docker run -d nsexec /bin/bash -c "cd nsexec; meson build; ninja -C build"
