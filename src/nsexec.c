@@ -265,9 +265,20 @@ static void setup_mountns(void)
 	if (chdir("/") == -1)
 		fatalErr("chdir to new root");
 
-	/* mount bind the oldroot into the new tmpfs */
-	if (mount("/oldroot/", "/newroot/", NULL, MS_BIND | MS_REC, NULL) < 0)
-		fatalErr("mount bind old rootfs");
+	if (mkdir("newroot/usr", 0755) == -1)
+		fatalErr("mkdir usr");
+
+	if (mount("oldroot/usr", "newroot/usr", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
+		fatalErr("mount bind old rootfs/usr");
+
+	/* if newpid was specified, mount a new proc */
+	if (child_args & CLONE_NEWPID) {
+		if (mkdir("newroot/proc", 0755) == -1)
+			fatalErr("mkdir etc");
+
+		if (mount("proc", "newroot/proc", "proc", 0, NULL) < 0)
+			fatalErr("mount proc");
+	}
 
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
@@ -286,27 +297,23 @@ static void setup_mountns(void)
 	if (chdir("/") == -1)
 		fatalErr("chdir /");
 
+	if (symlink("usr/lib64", "lib64") == -1)
+		fatalErr("mount bind old usr/lib64");
+
 	/* bind mount new resolv.conf pointing to the bridge connection */
 	if (child_args & CLONE_NEWNET) {
-		int fd = open("/tmp/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+		if (mkdir("/etc/", 0755) == -1)
+			fatalErr("mkdir etc");
+
+		int fd = open("/etc/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 		if ( fd == -1)
 			fatalErr("open resolv.conf wronly");
 
 		const char *nameserver = "nameserver 192.168.122.1\n";
 		if (write(fd, nameserver, strlen(nameserver)) == -1)
 			fatalErr("write resolve.conf");
-
-		// define a per-user resolv.conf using the bridge address
-		// https://serverfault.com/questions/510027/how-to-set-a-per-user-resolv-conf
-		if (mount("/tmp/resolv.conf", "/etc/resolv.conf", NULL, MS_BIND, NULL) < 0)
-			fatalErr("mount bind resolv.conf");
 	}
 
-	/* if newpid was specified, mount a new proc, or let the /proc mounted
-	 * by rootfs */
-	if (child_args & CLONE_NEWPID)
-		if (mount("proc", "/proc", "proc", 0, NULL) < 0)
-			fatalErr("mount proc");
 }
 
 /* map user 1000 to user 0 (root) inside namespace */
