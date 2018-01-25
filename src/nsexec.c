@@ -233,7 +233,7 @@ static void setup_bridge(int child_pid, int op)
 	default:
 		if (waitpid(pid, &wstatus, 0) == -1)
 			fatalErr("waitpid bridge\n");
-		if (!WIFEXITED(wstatus))
+		if (WEXITSTATUS(wstatus))
 			fatalErrMsg("bridge process terminated anormally\n");
 	}
 }
@@ -357,6 +357,9 @@ static int child_func(void *arg)
 	int c_args = *(int *)arg;
 	cap_t cap = cap_get_proc();
 
+	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
+		fatalErr("prctl PR_SET_PRDEATHSIG");
+
 	/* blocked by parent process */
 	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
 		if (read(wait_fd, &val, sizeof(val)) < 0)
@@ -367,9 +370,6 @@ static int child_func(void *arg)
 	/* only configure network is a new netns is created */
 	if (c_args & CLONE_NEWNET)
 		setup_network();
-
-	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
-		fatalErr("prctl PR_SET_PRDEATHSIG");
 
 	argv0 = (exec_file) ? exec_file : global_argv[0];
 	if (!argv0)
