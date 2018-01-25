@@ -504,8 +504,10 @@ int main(int argc, char **argv)
 	if (waitpid(pid, NULL, 0) == -1)
 		fatalErr("waitpid");
 
-	if (child_args & CLONE_NEWNET)
-		setup_bridge(pid, DELETE_BRIDGE);
+	// FIXME: is this necessary? Does the veth interface in host dies when
+	// the container finishes??
+	//if (child_args & CLONE_NEWNET)
+	//	setup_bridge(pid, DELETE_BRIDGE);
 
 	return 0;
 }
