@@ -373,7 +373,7 @@ static int child_func(void *arg)
 
 	argv0 = (exec_file) ? exec_file : global_argv[0];
 	if (!argv0)
-		argv0 = "/bin/bash";
+		argv0 = "bash";
 
 	verbose("PID: %d, PPID: %d\n", getpid(), getppid());
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
