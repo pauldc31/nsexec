@@ -409,7 +409,7 @@ int main(int argc, char **argv)
 {
 	pid_t pid;
 	child_args = SIGCHLD | CLONE_NEWNS;
-	int opt;
+	int opt, pstatus;
 
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
@@ -501,7 +501,7 @@ int main(int argc, char **argv)
 		if (write(wait_fd, &val, sizeof(val)) < 0)
 			fatalErr("write error on signaling child process");
 
-	if (waitpid(pid, NULL, 0) == -1)
+	if (waitpid(pid, &pstatus, 0) == -1)
 		fatalErr("waitpid");
 
 	// FIXME: is this necessary? Does the veth interface in host dies when
@@ -509,5 +509,6 @@ int main(int argc, char **argv)
 	//if (child_args & CLONE_NEWNET)
 	//	setup_bridge(pid, DELETE_BRIDGE);
 
-	return 0;
+	/* return the exit code from the container's process */
+	return WEXITSTATUS(pstatus);
 }
