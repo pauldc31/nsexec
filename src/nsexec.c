@@ -271,6 +271,12 @@ static void setup_mountns(void)
 	if (mount("oldroot/usr", "newroot/usr", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
 		fatalErr("mount bind old rootfs/usr");
 
+	if (mkdir("newroot/bin", 0755) == -1)
+		fatalErr("mkdir usr");
+
+	if (mount("oldroot/bin", "newroot/bin", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
+		fatalErr("mount bind old rootfs/usr");
+
 	/* if newpid was specified, mount a new proc */
 	if (child_args & CLONE_NEWPID) {
 		if (mkdir("newroot/proc", 0755) == -1)
