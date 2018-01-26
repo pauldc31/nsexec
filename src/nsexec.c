@@ -277,6 +277,18 @@ static void setup_mountns(void)
 	if (mount("oldroot/bin", "newroot/bin", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
 		fatalErr("mount bind old rootfs/usr");
 
+	if (mkdir("newroot/lib", 0755) == -1)
+		fatalErr("mkdir usr");
+
+	if (mount("oldroot/lib", "newroot/lib", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
+		fatalErr("mount bind old rootfs/usr");
+
+	if (mkdir("newroot/lib64", 0755) == -1)
+		fatalErr("mkdir usr");
+
+	if (mount("oldroot/lib64", "newroot/lib64", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
+		fatalErr("mount bind old rootfs/usr");
+
 	/* if newpid was specified, mount a new proc */
 	if (child_args & CLONE_NEWPID) {
 		if (mkdir("newroot/proc", 0755) == -1)
@@ -302,9 +314,6 @@ static void setup_mountns(void)
 
 	if (chdir("/") == -1)
 		fatalErr("chdir /");
-
-	if (symlink("usr/lib64", "lib64") == -1)
-		fatalErr("mount bind old usr/lib64");
 
 	/* bind mount new resolv.conf pointing to the bridge connection */
 	if (child_args & CLONE_NEWNET) {
