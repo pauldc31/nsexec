@@ -240,6 +240,17 @@ static void setup_bridge(int child_pid, int op)
 
 static void setup_mountns(void)
 {
+	struct {
+		char *dirn;
+		char *mountp;
+	} *mp, mount_list[] = {
+		{"newroot/usr", "oldroot/usr"},
+		{"newroot/bin", "oldroot/bin"},
+		{"newroot/lib", "oldroot/lib"},
+		{"newroot/lib64", "oldroot/lib64"},
+		{NULL, NULL}
+	};
+
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
@@ -265,29 +276,14 @@ static void setup_mountns(void)
 	if (chdir("/") == -1)
 		fatalErr("chdir to new root");
 
-	if (mkdir("newroot/usr", 0755) == -1)
-		fatalErr("mkdir usr");
+	for (mp = mount_list; mp->dirn; mp++) {
+		if (mkdir(mp->dirn, 0755) == -1)
+			fatalErrMsg("mkdir %s\n", mp->dirn);
 
-	if (mount("oldroot/usr", "newroot/usr", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
-		fatalErr("mount bind old rootfs/usr");
-
-	if (mkdir("newroot/bin", 0755) == -1)
-		fatalErr("mkdir usr");
-
-	if (mount("oldroot/bin", "newroot/bin", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
-		fatalErr("mount bind old rootfs/usr");
-
-	if (mkdir("newroot/lib", 0755) == -1)
-		fatalErr("mkdir usr");
-
-	if (mount("oldroot/lib", "newroot/lib", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
-		fatalErr("mount bind old rootfs/usr");
-
-	if (mkdir("newroot/lib64", 0755) == -1)
-		fatalErr("mkdir usr");
-
-	if (mount("oldroot/lib64", "newroot/lib64", NULL, MS_BIND | MS_RDONLY, NULL) < 0)
-		fatalErr("mount bind old rootfs/usr");
+		if (mount(mp->mountp, mp->dirn, NULL, MS_BIND | MS_RDONLY,
+					NULL) < 0)
+			fatalErrMsg("mount bind old %s\n", mp->mountp);
+	}
 
 	/* if newpid was specified, mount a new proc */
 	if (child_args & CLONE_NEWPID) {
