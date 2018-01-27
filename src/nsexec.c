@@ -12,6 +12,7 @@
 #include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
+#include <stdbool.h> /* true, false, bool */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@ static uint64_t val = 1;
 static char veth_h[9] = {}, veth_ns[9] = {};
 const char *exec_file = NULL;
 const char *hostname = NULL;
+static bool graphics_enabled = false;
 char **global_argv;
 
 enum {
@@ -242,6 +244,7 @@ static void setup_mountns(void)
 	} *mp, mount_list[] = {
 		{"newroot", NULL},
 		{"newroot/dev", NULL},
+		{"newroot/tmp", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{"newroot/bin", "oldroot/bin"},
 		{"newroot/lib", "oldroot/lib"},
@@ -302,6 +305,22 @@ static void setup_mountns(void)
 		if (mount(dev_opath, dev_npath, NULL, MS_BIND, NULL) < 0)
 			err(EXIT_FAILURE, "failed to mount %s into %s",
 					dev_opath, dev_npath);
+	}
+
+	/* check for both Xorg or Wayland */
+	if (graphics_enabled) {
+		const char *session = getenv("XDG_SESSION_TYPE");
+		if (!session)
+			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
+
+		if (!strncmp(session, "x11", 3)) {
+			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
+				err(EXIT_FAILURE, "mkdir X11 failed");
+
+			if (mount("oldroot/tmp/.X11-unix", "newroot/tmp/.X11-unix"
+				, NULL, MS_BIND | MS_REC, NULL) < 0)
+				err(EXIT_FAILURE, "bind mount X11");
+		}
 	}
 
 	/* if newpid was specified, mount a new proc */
@@ -439,6 +458,7 @@ static void usage(const char *argv0)
 		"--unshare-pid          Create new PID namespace\n"
 		"--unshare-uts          Create new uts namespace\n"
 		"--unshare-user         Create new user namespace\n"
+		"--graphics             Bind xorg/wayland files into the container\n"
 		"--verbose              Enable verbose mode\n\n"
 		"ARGUMENTS:\n"
 		"--hostname             To start with desired hostname (only valid with --unshare-uts option)\n"
@@ -461,6 +481,7 @@ int main(int argc, char **argv)
 		{"unshare-pid", no_argument, 0, 'p'},
 		{"unshare-uts", no_argument, 0, 'u'},
 		{"unshare-user", no_argument, 0, 'U'},
+		{"graphics", no_argument, 0, 'g'},
 		{"verbose", no_argument, 0, 'v'},
 		{0, 0, 0, 0},
 	};
@@ -495,6 +516,9 @@ int main(int argc, char **argv)
 			break;
 		case 's':
 			hostname = optarg;
+			break;
+		case 'g':
+			graphics_enabled = true;
 			break;
 		case 'v':
 			enable_verbose = 1;

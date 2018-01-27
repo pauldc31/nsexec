@@ -14,6 +14,7 @@ _nsexec() {
 		--unshare-user
 		--verbose
 		--hostname
+		--graphics
 	"
 
 	if [[ "$cur" == -* ]]; then
