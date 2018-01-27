@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -37,6 +38,7 @@ static uint64_t val = 1;
 /* vethXXXX */
 static char veth_h[9] = {}, veth_ns[9] = {};
 const char *exec_file = NULL;
+const char *hostname = NULL;
 char **global_argv;
 
 enum {
@@ -394,6 +396,13 @@ static int child_func(void *arg)
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
 		fatalErr("PR_SET_NO_NEW_PRIVS");
 
+	if (c_args & CLONE_NEWUTS && hostname) {
+		verbose("hostname: %s\n", hostname);
+
+		if (sethostname(hostname, strlen(hostname)) == -1)
+			fatalErr("Unable to set desired hostname");
+	}
+
 	if (execvp(argv0, global_argv) == -1)
 		fatalErr("execvp");
 
@@ -402,8 +411,9 @@ static int child_func(void *arg)
 
 static void usage(const char *argv0)
 {
-	fprintf(stderr, "Usage: %s [OPTIONS]\n\n", argv0);
+	fprintf(stderr, "Usage: %s [OPTIONS] [ARGUMENTS]\n\n", argv0);
 	fprintf(stderr,
+		"OPTIONS:\n"
 		"--help                 Print this message\n"
 		"--exec-file            Execute the specified file inside the sandbox\n"
 		"--unshare-all          Create all supported namespaces\n"
@@ -412,7 +422,9 @@ static void usage(const char *argv0)
 		"--unshare-pid          Create new PID namespace\n"
 		"--unshare-uts          Create new uts namespace\n"
 		"--unshare-user         Create new user namespace\n"
-		"--verbose              Enable verbose mode\n"
+		"--verbose              Enable verbose mode\n\n"
+		"ARGUMENTS:\n"
+		"--hostname             To start with desired hostname (only valid with --unshare-uts option)\n"
 	);
 }
 
@@ -424,6 +436,7 @@ int main(int argc, char **argv)
 
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
+		{"hostname", required_argument, 0, 's'},
 		{"help", no_argument, 0, 'h'},
 		{"unshare-all", no_argument, 0, 'a'},
 		{"unshare-ipc", no_argument, 0, 'i'},
@@ -436,7 +449,7 @@ int main(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "hinmpuUve:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUv:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -463,6 +476,9 @@ int main(int argc, char **argv)
 		case 'e':
 			exec_file = optarg;
 			break;
+		case 's':
+			hostname = optarg;
+			break;
 		case 'v':
 			enable_verbose = 1;
 			break;
@@ -473,6 +489,10 @@ int main(int argc, char **argv)
 			/* don't bother with invalid options here */
 			break;
 		}
+	}
+
+	if (hostname && !(child_args & CLONE_NEWUTS)) {
+		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts option");
 	}
 
 	/* use the unparsed options in execvp later */
