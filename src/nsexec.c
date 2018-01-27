@@ -244,6 +244,8 @@ static void setup_mountns(void)
 	} *mp, mount_list[] = {
 		{"newroot", NULL},
 		{"newroot/dev", NULL},
+		{"newroot/dev/shm", NULL},
+		{"newroot/dev/pts", NULL},
 		{"newroot/tmp", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{"newroot/bin", "oldroot/bin"},
@@ -290,6 +292,10 @@ static void setup_mountns(void)
 						NULL) < 0)
 				fatalErrMsg("mount bind old %s\n", mp->mntd);
 	}
+
+	if (mount("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
+		"newinstance,ptmxmode=0666,mode=620") != 0)
+		err(EXIT_FAILURE, "mount devpts failed");
 
 	/* bind-mount /dev devices from hosts, following what bubblewrap does
 	 * when using user-namespaces
@@ -363,6 +369,8 @@ static void setup_mountns(void)
 			err(EXIT_FAILURE, "write resolve.conf");
 	}
 
+	if (symlink("/dev/pts/ptmx", "/dev/ptmx") == -1)
+		err(EXIT_FAILURE, "symlnk ptmx failed");
 }
 
 /* map user 1000 to user 0 (root) inside namespace */
