@@ -241,12 +241,20 @@ static void setup_mountns(void)
 		char *mntd;
 	} *mp, mount_list[] = {
 		{"newroot", NULL},
+		{"newroot/dev", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{"newroot/bin", "oldroot/bin"},
 		{"newroot/lib", "oldroot/lib"},
 		{"newroot/lib64", "oldroot/lib64"},
 		{NULL, NULL}
 	};
+
+	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
+	/* /oldroot/ + dev/ + urandom*/
+	/* /newroot/ + dev/ + urandom*/
+	char dev_opath[21], dev_npath[21];
+	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
+		"urandom", NULL};
 
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
@@ -278,6 +286,22 @@ static void setup_mountns(void)
 			if (mount(mp->mntd, mp->dirn, NULL, MS_BIND | MS_RDONLY,
 						NULL) < 0)
 				fatalErrMsg("mount bind old %s\n", mp->mntd);
+	}
+
+	/* bind-mount /dev devices from hosts, following what bubblewrap does
+	 * when using user-namespaces
+	 * */
+	/* FIXME: This can be umounted by container, how to fix it?? */
+	for (devp = sym_devs; *devp; devp++) {
+		sprintf(dev_opath, "oldroot/dev/%s", *devp);
+		sprintf(dev_npath, "newroot/dev/%s", *devp);
+
+		if (creat(dev_npath, 0666) == -1)
+			err(EXIT_FAILURE, "creat failed for %s", dev_npath);
+
+		if (mount(dev_opath, dev_npath, NULL, MS_BIND, NULL) < 0)
+			err(EXIT_FAILURE, "failed to mount %s into %s",
+					dev_opath, dev_npath);
 	}
 
 	/* if newpid was specified, mount a new proc */
