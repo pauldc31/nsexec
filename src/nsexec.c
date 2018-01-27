@@ -238,8 +238,9 @@ static void setup_mountns(void)
 {
 	struct {
 		char *dirn;
-		char *mountp;
+		char *mntd;
 	} *mp, mount_list[] = {
+		{"newroot", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{"newroot/bin", "oldroot/bin"},
 		{"newroot/lib", "oldroot/lib"},
@@ -259,9 +260,6 @@ static void setup_mountns(void)
 		err(EXIT_FAILURE, "chdir");
 
 	/* prepare pivot_root environment */
-	if (mkdir("newroot", 0755) == -1)
-		err(EXIT_FAILURE, "newroot");
-
 	if (mkdir("oldroot", 0755) == -1)
 		err(EXIT_FAILURE, "oldroot");
 
@@ -276,9 +274,10 @@ static void setup_mountns(void)
 		if (mkdir(mp->dirn, 0755) == -1)
 			fatalErrMsg("mkdir %s\n", mp->dirn);
 
-		if (mount(mp->mountp, mp->dirn, NULL, MS_BIND | MS_RDONLY,
-					NULL) < 0)
-			fatalErrMsg("mount bind old %s\n", mp->mountp);
+		if (mp->mntd)
+			if (mount(mp->mntd, mp->dirn, NULL, MS_BIND | MS_RDONLY,
+						NULL) < 0)
+				fatalErrMsg("mount bind old %s\n", mp->mntd);
 	}
 
 	/* if newpid was specified, mount a new proc */
