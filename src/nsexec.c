@@ -58,12 +58,6 @@ static void fatalErrMsg(const char *fmt, ...)
 	exit(EXIT_FAILURE);
 }
 
-void fatalErr(const char *msg)
-{
-	perror(msg);
-	exit(EXIT_FAILURE);
-}
-
 __attribute__((format (printf, 1, 2)))
 static inline void verbose(char *fmt, ...)
 {
@@ -86,11 +80,11 @@ static void setup_veth_names(void)
 
 	/* copy just the first foud characters from uuid for veth_h */
 	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
-		fatalErr("building veth_h");
+		err(EXIT_FAILURE, "building veth_h");
 
 	/* copy the next four characters from the start of the uuid */
 	if (snprintf(veth_ns, 9, "veth%s", uuid_parsed + 4) < 0)
-		fatalErr("building veth_ns");
+		err(EXIT_FAILURE, "building veth_ns");
 }
 
 static void setup_network(void)
@@ -219,22 +213,22 @@ static void setup_bridge(int child_pid, int op)
 	pid = fork();
 	switch (pid) {
 	case -1:
-		fatalErr("fork bridge");
+		err(EXIT_FAILURE, "fork bridge");
 		/* fall-thru */
 	case 0:
 		if (snprintf(strpid, sizeof(strpid), "%d", child_pid) < 0)
-			fatalErr("strnpid child_pid");
+			err(EXIT_FAILURE, "strnpid child_pid");
 		if (op == CREATE_BRIDGE)
 			execlp(binpath, binpath, "create", strpid, veth_h,
 					veth_ns, NULL);
 		else if (op == DELETE_BRIDGE)
 			execlp(binpath, binpath, "delete", veth_h, NULL);
 
-		fatalErr("execlp bridge failed\n");
+		err(EXIT_FAILURE, "execlp bridge failed");
 		/* fall-thru */
 	default:
 		if (waitpid(pid, &wstatus, 0) == -1)
-			fatalErr("waitpid bridge\n");
+			err(EXIT_FAILURE, "waitpid bridge");
 		if (WEXITSTATUS(wstatus))
 			fatalErrMsg("bridge process terminated anormally\n");
 	}
@@ -256,27 +250,27 @@ static void setup_mountns(void)
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
-		fatalErr("mount recursive slave");
+		err(EXIT_FAILURE, "mount recursive slave");
 
 	if (mount("", base_path, "tmpfs", MS_NOSUID | MS_NODEV, NULL) < 0)
-		fatalErr("mount tmpfs");
+		err(EXIT_FAILURE, "mount tmpfs");
 
 	if (chdir(base_path) == -1)
-		fatalErr("chdir");
+		err(EXIT_FAILURE, "chdir");
 
 	/* prepare pivot_root environment */
 	if (mkdir("newroot", 0755) == -1)
-		fatalErr("newroot");
+		err(EXIT_FAILURE, "newroot");
 
 	if (mkdir("oldroot", 0755) == -1)
-		fatalErr("oldroot");
+		err(EXIT_FAILURE, "oldroot");
 
 	/* there is not a wrapper in glibc for pivot_root */
 	if (syscall(__NR_pivot_root, base_path, "oldroot") == -1)
-		fatalErr("pivot_root");
+		err(EXIT_FAILURE, "pivot_root");
 
 	if (chdir("/") == -1)
-		fatalErr("chdir to new root");
+		err(EXIT_FAILURE, "chdir to new root");
 
 	for (mp = mount_list; mp->dirn; mp++) {
 		if (mkdir(mp->dirn, 0755) == -1)
@@ -290,41 +284,41 @@ static void setup_mountns(void)
 	/* if newpid was specified, mount a new proc */
 	if (child_args & CLONE_NEWPID) {
 		if (mkdir("newroot/proc", 0755) == -1)
-			fatalErr("mkdir etc");
+			err(EXIT_FAILURE, "mkdir etc");
 
 		if (mount("proc", "newroot/proc", "proc", 0, NULL) < 0)
-			fatalErr("mount proc");
+			err(EXIT_FAILURE, "mount proc");
 	}
 
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
-		fatalErr("remount oldroot");
+		err(EXIT_FAILURE, "remount oldroot");
 
 	/* apply lazy umount on oldroot */
 	if (umount2("oldroot", MNT_DETACH) < 0)
-		fatalErr("umount2 oldroot");
+		err(EXIT_FAILURE, "umount2 oldroot");
 
 	if (chdir("/newroot") == -1)
-		fatalErr("chdir newroot");
+		err(EXIT_FAILURE, "chdir newroot");
 
 	if (chroot("/newroot") == -1)
-		fatalErr("chroot newroot");
+		err(EXIT_FAILURE, "chroot newroot");
 
 	if (chdir("/") == -1)
-		fatalErr("chdir /");
+		err(EXIT_FAILURE, "chdir /");
 
 	/* bind mount new resolv.conf pointing to the bridge connection */
 	if (child_args & CLONE_NEWNET) {
 		if (mkdir("/etc/", 0755) == -1)
-			fatalErr("mkdir etc");
+			err(EXIT_FAILURE, "mkdir etc");
 
 		int fd = open("/etc/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 		if ( fd == -1)
-			fatalErr("open resolv.conf wronly");
+			err(EXIT_FAILURE, "open resolv.conf wronly");
 
 		const char *nameserver = "nameserver 192.168.122.1\n";
 		if (write(fd, nameserver, strlen(nameserver)) == -1)
-			fatalErr("write resolve.conf");
+			err(EXIT_FAILURE, "write resolve.conf");
 	}
 
 }
@@ -337,31 +331,31 @@ static void set_maps(pid_t pid, const char *map) {
 
 	if (!strncmp(map, "gid_map", 7)) {
 		if (snprintf(path, PATH_MAX, "/proc/%d/setgroups", pid) < 0)
-			fatalErr("snprintf");
+			err(EXIT_FAILURE, "snprintf");
 
 		/* check if setgroups exists, in order to set the group map */
 		fd = open(path, O_RDWR);
 		if (fd == -1 && errno != ENOENT)
-			fatalErr("setgroups");
+			err(EXIT_FAILURE, "setgroups");
 
 		if (write(fd, "deny", 5) == -1)
-			fatalErr("write setgroups");
+			err(EXIT_FAILURE, "write setgroups");
 
 		if (close(fd) == -1)
-			fatalErr("close setgroups");
+			err(EXIT_FAILURE, "close setgroups");
 	}
 
 	if (snprintf(path, PATH_MAX, "/proc/%d/%s", pid, map) < 0)
-		fatalErr("snprintf");
+		err(EXIT_FAILURE, "snprintf");
 
 	fd = open(path, O_RDWR);
 	if (fd == -1)
-		fatalErr(path);
+		err(EXIT_FAILURE, "set maps %s", path);
 
 	data_len = strlen(data);
 
 	if (write(fd, data, data_len) != data_len)
-		fatalErr("write");
+		err(EXIT_FAILURE, "write");
 }
 
 static int child_func(void *arg)
@@ -371,12 +365,12 @@ static int child_func(void *arg)
 	cap_t cap = cap_get_proc();
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
-		fatalErr("prctl PR_SET_PRDEATHSIG");
+		err(EXIT_FAILURE, "prctl PR_SET_PRDEATHSIG");
 
 	/* blocked by parent process */
 	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
 		if (read(wait_fd, &val, sizeof(val)) < 0)
-			fatalErr("read error before setting mountns");
+			err(EXIT_FAILURE, "read error before setting mountns");
 
 	setup_mountns();
 
@@ -394,17 +388,17 @@ static int child_func(void *arg)
 
 	/* avoid acquiring capabilities form the executable file on execlp */
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
-		fatalErr("PR_SET_NO_NEW_PRIVS");
+		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
 
 	if (c_args & CLONE_NEWUTS && hostname) {
 		verbose("hostname: %s\n", hostname);
 
 		if (sethostname(hostname, strlen(hostname)) == -1)
-			fatalErr("Unable to set desired hostname");
+			err(EXIT_FAILURE, "Unable to set desired hostname");
 	}
 
 	if (execvp(argv0, global_argv) == -1)
-		fatalErr("execvp");
+		err(EXIT_FAILURE, "execvp");
 
 	return 0;
 }
@@ -491,24 +485,24 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (hostname && !(child_args & CLONE_NEWUTS)) {
-		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts option");
-	}
+	if (hostname && !(child_args & CLONE_NEWUTS))
+		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
+			       "option");
 
 	/* use the unparsed options in execvp later */
 	global_argv = argv + optind;
 
 	/* prepare sandbox base dir */
 	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
-		fatalErr("prepare_tmpfs sprintf");
+		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
 
 	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
-		fatalErr("mkdir base_path err");
+		err(EXIT_FAILURE, "mkdir base_path err");
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET) {
 		wait_fd = eventfd(0, EFD_CLOEXEC);
 		if (wait_fd == -1)
-			fatalErr("eventfd");
+			err(EXIT_FAILURE, "eventfd");
 	}
 
 	if (child_args & CLONE_NEWNET)
@@ -518,7 +512,7 @@ int main(int argc, char **argv)
 	pid = clone(child_func, child_stack + STACK_SIZE, child_args
 			, (void *)&child_args);
 	if (pid == -1)
-		fatalErr("clone");
+		err(EXIT_FAILURE, "clone");
 
 	if (child_args & CLONE_NEWUSER) {
 		set_maps(pid, "uid_map");
@@ -530,10 +524,10 @@ int main(int argc, char **argv)
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
 		if (write(wait_fd, &val, sizeof(val)) < 0)
-			fatalErr("write error on signaling child process");
+			err(EXIT_FAILURE, "write error on signaling child process");
 
 	if (waitpid(pid, &pstatus, 0) == -1)
-		fatalErr("waitpid");
+		err(EXIT_FAILURE, "waitpid");
 
 	// FIXME: is this necessary? Does the veth interface in host dies when
 	// the container finishes??
