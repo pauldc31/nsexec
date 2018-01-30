@@ -15,6 +15,7 @@ _nsexec() {
 		--verbose
 		--hostname
 		--graphics
+		--seccomp-keep
 	"
 
 	if [[ "$cur" == -* ]]; then

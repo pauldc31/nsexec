@@ -28,6 +28,8 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+#include "ns_seccomp.h"
+
 #define STACK_SIZE (1024 * 1024)
 static char child_stack[STACK_SIZE];
 
@@ -41,6 +43,7 @@ static char veth_h[9] = {}, veth_ns[9] = {};
 const char *exec_file = NULL;
 const char *hostname = NULL;
 static bool graphics_enabled = false;
+static char *seccomp_filter = NULL;
 char **global_argv;
 
 enum {
@@ -447,6 +450,9 @@ static int child_func(void *arg)
 			err(EXIT_FAILURE, "Unable to set desired hostname");
 	}
 
+	if (seccomp_filter && !install_seccomp_filter(seccomp_filter))
+		errx(EXIT_FAILURE, "Could not install seccomp filter");
+
 	if (execvp(argv0, global_argv) == -1)
 		err(EXIT_FAILURE, "execvp");
 
@@ -467,6 +473,7 @@ static void usage(const char *argv0)
 		"--unshare-uts          Create new uts namespace\n"
 		"--unshare-user         Create new user namespace\n"
 		"--graphics             Bind xorg/wayland files into the container\n"
+		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
 		"--verbose              Enable verbose mode\n\n"
 		"ARGUMENTS:\n"
 		"--hostname             To start with desired hostname (only valid with --unshare-uts option)\n"
@@ -482,6 +489,7 @@ int main(int argc, char **argv)
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
 		{"hostname", required_argument, 0, 's'},
+		{"seccomp-keep", required_argument, 0, 'k'},
 		{"help", no_argument, 0, 'h'},
 		{"unshare-all", no_argument, 0, 'a'},
 		{"unshare-ipc", no_argument, 0, 'i'},
@@ -495,7 +503,7 @@ int main(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUv:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUv:k:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -530,6 +538,9 @@ int main(int argc, char **argv)
 			break;
 		case 'v':
 			enable_verbose = 1;
+			break;
+		case 'k':
+			seccomp_filter = optarg;
 			break;
 		case 'h':
 			usage(argv[0]);
