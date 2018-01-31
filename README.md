@@ -15,6 +15,7 @@ Dependencies:
 
 	libcap
 	libnl-route-3.0
+	libseccomp
 	libuuid
 
 nsexec uses meson to as build system. To build and install nsexec:
