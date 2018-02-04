@@ -5,11 +5,6 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
-#include <netlink/netlink.h>
-#include <netlink/route/addr.h>
-#include <netlink/route/link.h>
-#include <netlink/route/route.h>
-#include <net/if.h> /* IFF_UP */
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h> /* true, false, bool */
@@ -28,6 +23,7 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+#include "ns_network.h"
 #include "ns_seccomp.h"
 
 #define STACK_SIZE (1024 * 1024)
@@ -45,11 +41,6 @@ const char *hostname = NULL;
 static bool graphics_enabled = false;
 static char *seccomp_filter = NULL;
 char **global_argv;
-
-enum {
-	CREATE_BRIDGE,
-	DELETE_BRIDGE
-};
 
 __attribute__((format (printf, 1, 2)))
 static void fatalErrMsg(const char *fmt, ...)
@@ -90,153 +81,6 @@ static void setup_veth_names(void)
 	/* copy the next four characters from the start of the uuid */
 	if (snprintf(veth_ns, 9, "veth%s", uuid_parsed + 4) < 0)
 		err(EXIT_FAILURE, "building veth_ns");
-}
-
-static void setup_network(void)
-{
-	struct nl_sock *sk;
-	struct rtnl_link *link, *eth, *change;
-	struct nl_cache *cache;
-	struct nl_addr *addr;
-	struct rtnl_addr *rt_addr;
-	struct rtnl_route *route;
-	struct rtnl_nexthop *nh;
-	int ifindex;
-	int err;
-
-	sk = nl_socket_alloc();
-	err = nl_connect(sk, NETLINK_ROUTE);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to connect netlink route: %s\n",
-				nl_geterror(err));
-
-	err = rtnl_link_alloc_cache(sk, AF_UNSPEC, &cache);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to build link cache: %s\n",
-				nl_geterror(err));
-
-	link = rtnl_link_get_by_name(cache, "lo");
-	if (!link)
-		fatalErrMsg("Error: Could not find loopback interface\n");
-
-	change = rtnl_link_alloc();
-	rtnl_link_set_flags(change, IFF_UP);
-
-	err = rtnl_link_change(sk, link, change, 0);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to activate loopback: %s\n",
-				nl_geterror(err));
-
-	eth = rtnl_link_get_by_name(cache, veth_ns);
-	if (!eth)
-		fatalErrMsg("Error: Unable to find %s\n", veth_ns);
-
-	/* rename veth_ns to eth0 inside the ns */
-	rtnl_link_set_name(change, "eth0");
-
-	err = rtnl_link_change(sk, eth, change, 0);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to activate/rename %s to eth0: %s\n",
-				veth_ns, nl_geterror(err));
-
-	err = nl_cache_refill(sk, cache);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to refill cache: %s\n",
-				nl_geterror(err));
-
-	rt_addr = rtnl_addr_alloc();
-
-	err = nl_addr_parse("192.168.122.111/24", AF_INET, &addr);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
-				nl_geterror(err));
-
-	ifindex = rtnl_link_name2i(cache, "eth0");
-	if (ifindex == 0)
-		fatalErrMsg("Error: could not find eth0 index\n");
-
-	rtnl_addr_set_ifindex(rt_addr, ifindex);
-	rtnl_addr_set_local(rt_addr, addr);
-	rtnl_addr_set_family(rt_addr, AF_INET);
-
-	err = nl_addr_parse("192.168.122.255", AF_INET, &addr);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
-				nl_geterror(err));
-
-	rtnl_addr_set_broadcast(rt_addr, addr);
-
-	err = rtnl_addr_add(sk, rt_addr, 0);
-	if (err < 0)
-		fatalErrMsg("Error: Unable add address: %s\n",
-				nl_geterror(err));
-
-	nh = rtnl_route_nh_alloc();
-	rtnl_route_nh_set_ifindex(nh, ifindex);
-
-	err = nl_addr_parse("192.168.122.1", AF_INET, &addr);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to parse IPv4: %s\n",
-				nl_geterror(err));
-
-	rtnl_route_nh_set_gateway(nh, addr);
-
-	route = rtnl_route_alloc();
-	rtnl_route_set_iif(route, AF_INET);
-	rtnl_route_set_scope(route, RT_SCOPE_UNIVERSE);
-	rtnl_route_set_table(route, RT_TABLE_MAIN);
-	rtnl_route_set_protocol(route, RTPROT_BOOT);
-	rtnl_route_set_priority(route, 0);
-	rtnl_route_set_type(route, RTN_UNICAST);
-	rtnl_route_add_nexthop(route, nh);
-
-	err = nl_addr_parse("default", AF_INET, &addr);
-	if (err < 0)
-		fatalErrMsg("Error: Unable to parse IPv4 dst: %s\n",
-				nl_geterror(err));
-
-	err = rtnl_route_set_dst(route, addr);
-	if (err < 0)
-		fatalErrMsg("Error: could not set route dst: %s\n",
-				nl_geterror(err));
-
-	err = rtnl_route_add(sk, route, 0);
-	if (err < 0)
-		fatalErrMsg("Error: could not add route: %s\n",
-				nl_geterror(err));
-
-	nl_close(sk);
-}
-
-static void setup_bridge(int child_pid, int op)
-{
-	pid_t pid;
-	char *binpath = "/usr/bin/nsexec_nic";
-	char strpid[15];
-	int wstatus;
-
-	pid = fork();
-	switch (pid) {
-	case -1:
-		err(EXIT_FAILURE, "fork bridge");
-		/* fall-thru */
-	case 0:
-		if (snprintf(strpid, sizeof(strpid), "%d", child_pid) < 0)
-			err(EXIT_FAILURE, "strnpid child_pid");
-		if (op == CREATE_BRIDGE)
-			execlp(binpath, binpath, "create", strpid, veth_h,
-					veth_ns, NULL);
-		else if (op == DELETE_BRIDGE)
-			execlp(binpath, binpath, "delete", veth_h, NULL);
-
-		err(EXIT_FAILURE, "execlp bridge failed");
-		/* fall-thru */
-	default:
-		if (waitpid(pid, &wstatus, 0) == -1)
-			err(EXIT_FAILURE, "waitpid bridge");
-		if (WEXITSTATUS(wstatus))
-			fatalErrMsg("bridge process terminated anormally\n");
-	}
 }
 
 static void setup_mountns(void)
@@ -429,7 +273,7 @@ static int child_func(void *arg)
 
 	/* only configure network is a new netns is created */
 	if (c_args & CLONE_NEWNET)
-		setup_network();
+		setup_container_network(veth_ns);
 
 	argv0 = (exec_file) ? exec_file : global_argv[0];
 	if (!argv0)
@@ -587,7 +431,7 @@ int main(int argc, char **argv)
 	}
 
 	if (child_args & CLONE_NEWNET)
-		setup_bridge(pid, CREATE_BRIDGE);
+		create_bridge(pid, veth_h, veth_ns);
 
 	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
 		if (write(wait_fd, &val, sizeof(val)) < 0)
@@ -599,7 +443,7 @@ int main(int argc, char **argv)
 	// FIXME: is this necessary? Does the veth interface in host dies when
 	// the container finishes??
 	//if (child_args & CLONE_NEWNET)
-	//	setup_bridge(pid, DELETE_BRIDGE);
+	//	delete_bridge(pid, veth_h);
 
 	/* return the exit code from the container's process */
 	return WEXITSTATUS(pstatus);

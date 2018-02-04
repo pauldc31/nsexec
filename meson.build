@@ -38,7 +38,9 @@ if not dep_libcap.found()
 	dep_libcap = dependency('libcap-ng')
 endif
 
-executable('nsexec', 'src/nsexec.c', 'src/ns_seccomp.c'
+executable('nsexec', 'src/nsexec.c'
+		    , 'src/ns_seccomp.c'
+		    , 'src/ns_network.c'
 	, install: true
 	, dependencies: [dep_libcap, dep_libnl, dep_uuid, dep_seccomp])
 
