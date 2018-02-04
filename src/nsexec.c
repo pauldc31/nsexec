@@ -43,18 +43,6 @@ static char *seccomp_filter = NULL;
 char **global_argv;
 
 __attribute__((format (printf, 1, 2)))
-static void fatalErrMsg(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-
-	exit(EXIT_FAILURE);
-}
-
-__attribute__((format (printf, 1, 2)))
 static inline void verbose(char *fmt, ...)
 {
 	va_list ap;
@@ -132,12 +120,12 @@ static void setup_mountns(void)
 
 	for (mp = mount_list; mp->dirn; mp++) {
 		if (mkdir(mp->dirn, 0755) == -1)
-			fatalErrMsg("mkdir %s\n", mp->dirn);
+			err(EXIT_FAILURE, "mkdir %s\n", mp->dirn);
 
 		if (mp->mntd)
 			if (mount(mp->mntd, mp->dirn, NULL, MS_BIND | MS_RDONLY,
 						NULL) < 0)
-				fatalErrMsg("mount bind old %s\n", mp->mntd);
+				err(EXIT_FAILURE, "mount bind %s\n", mp->mntd);
 	}
 
 	if (mount("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
