@@ -60,7 +60,7 @@ static void setup_veth_names(void)
 	char uuid_parsed[37];
 
 	uuid_generate_random(gen_uuid);
-	uuid_unparse(gen_uuid, uuid_parsed);
+	uuid_unparse_upper(gen_uuid, uuid_parsed);
 
 	/* copy just the first foud characters from uuid for veth_h */
 	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
