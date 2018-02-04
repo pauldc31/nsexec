@@ -73,14 +73,16 @@ static void setup_veth_names(void)
 
 static void setup_mountns(void)
 {
-	struct {
+	struct mount_setup {
 		char *dirn;
 		char *mntd;
-	} *mp, mount_list[] = {
+	};
+
+	struct mount_setup *mp, mount_list[] = {
 		{"newroot", NULL},
 		{"newroot/dev", NULL},
-		{"newroot/dev/shm", NULL},
 		{"newroot/dev/pts", NULL},
+		{"newroot/dev/shm", NULL},
 		{"newroot/tmp", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{"newroot/bin", "oldroot/bin"},
@@ -162,6 +164,20 @@ static void setup_mountns(void)
 				, NULL, MS_BIND | MS_REC, NULL) < 0)
 				err(EXIT_FAILURE, "bind mount X11");
 		}
+	}
+
+	struct mount_setup *ms, dev_symlinks[] = {
+		{"/proc/self/fd", "newroot/dev/fd"},
+		{"/proc/self/fd/0", "newroot/dev/stdin"},
+		{"/proc/self/fd/1", "newroot/dev/stdout"},
+		{"/proc/self/fd/2", "newroot/dev/stderr"},
+		{NULL, NULL}
+	};
+
+	for (ms = dev_symlinks; ms->dirn; ms++) {
+		int ret = symlink(ms->dirn, ms->mntd);
+		if (ret && errno != EEXIST)
+			err(EXIT_FAILURE, "linking %s", ms->mntd);
 	}
 
 	/* if newpid was specified, mount a new proc */
