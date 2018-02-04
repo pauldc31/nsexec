@@ -439,10 +439,6 @@ static int child_func(void *arg)
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
 	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
 
-	/* avoid acquiring capabilities form the executable file on execlp */
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
-		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
-
 	if (c_args & CLONE_NEWUTS && hostname) {
 		verbose("hostname: %s\n", hostname);
 
@@ -450,6 +446,11 @@ static int child_func(void *arg)
 			err(EXIT_FAILURE, "Unable to set desired hostname");
 	}
 
+	/* avoid acquiring capabilities form the executable file on execlp */
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
+		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
+
+	/* setup filter here, as a normal user, since we have NO_NEW_PRIVS */
 	if (seccomp_filter && !install_seccomp_filter(seccomp_filter))
 		errx(EXIT_FAILURE, "Could not install seccomp filter");
 
