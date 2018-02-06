@@ -40,6 +40,8 @@ const char *exec_file = NULL;
 const char *hostname = NULL;
 static bool graphics_enabled = false;
 static char *seccomp_filter = NULL;
+static int ns_user = 0;
+static int ns_group = 0;
 char **global_argv;
 
 __attribute__((format (printf, 1, 2)))
@@ -227,8 +229,12 @@ static void setup_mountns(void)
 /* map user 1000 to user 0 (root) inside namespace */
 static void set_maps(pid_t pid, const char *map) {
 	int fd, data_len;
-	char path[PATH_MAX];
-	char data[] = "0 1000 1";
+	char path[PATH_MAX], data[30];
+	bool map_user = !strncmp(map, "uid_map", 7);
+
+	if (sprintf(data, "%d %d 1\n", map_user ? ns_user : ns_group
+				, map_user ? getuid() : getgid()) < 0)
+		err(EXIT_FAILURE, "set_maps data");
 
 	if (!strncmp(map, "gid_map", 7)) {
 		if (snprintf(path, PATH_MAX, "/proc/%d/setgroups", pid) < 0)
@@ -313,16 +319,18 @@ static void usage(const char *argv0)
 	fprintf(stderr, "Usage: %s [OPTIONS] [ARGUMENTS]\n\n", argv0);
 	fprintf(stderr,
 		"OPTIONS:\n"
+		"--exec                 Execute the specified file inside the sandbox\n"
+		"--graphics             Bind xorg/wayland files into the container\n"
 		"--help                 Print this message\n"
-		"--exec-file            Execute the specified file inside the sandbox\n"
+		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
+		"--uid                  Specify an UID to be executed inside the container"
+		"--gid                  Specify an GID to be executed inside the container"
 		"--unshare-all          Create all supported namespaces\n"
 		"--unshare-ipc          Create new IPC namespace\n"
 		"--unshare-net          Create new network namespace\n"
 		"--unshare-pid          Create new PID namespace\n"
 		"--unshare-uts          Create new uts namespace\n"
 		"--unshare-user         Create new user namespace\n"
-		"--graphics             Bind xorg/wayland files into the container\n"
-		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
 		"--verbose              Enable verbose mode\n\n"
 		"ARGUMENTS:\n"
 		"--hostname             To start with desired hostname (only valid with --unshare-uts option)\n"
@@ -348,6 +356,8 @@ int main(int argc, char **argv)
 		{"unshare-user", no_argument, 0, 'U'},
 		{"graphics", no_argument, 0, 'g'},
 		{"verbose", no_argument, 0, 'v'},
+		{"uid", required_argument, 0, 'x'},
+		{"gid", required_argument, 0, 'X'},
 		{0, 0, 0, 0},
 	};
 
@@ -391,6 +401,22 @@ int main(int argc, char **argv)
 		case 'k':
 			seccomp_filter = optarg;
 			break;
+		case 'x':
+		{
+			char* endptr;
+			ns_user = strtol(optarg, &endptr, 10);
+			if (ns_user < 0 || endptr[0] != 0)
+				errx(EXIT_FAILURE, "Invalid uid: %s", optarg);
+			break;
+		}
+		case 'X':
+		{
+			char *endptr;
+			ns_group = strtol(optarg, &endptr, 10);
+			if (ns_group < 0 || endptr[0] != 0)
+				errx(EXIT_FAILURE, "Invalid gid: %s", optarg);
+			break;
+		}
 		case 'h':
 			usage(argv[0]);
 			exit(EXIT_FAILURE);

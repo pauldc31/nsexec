@@ -4,7 +4,7 @@ _nsexec() {
 	_init_completion || return
 
 	local boolean_options="
-		--exec-file
+		--exec
 		--help
 		--unshare-all
 		--unshare-ipc
@@ -16,6 +16,8 @@ _nsexec() {
 		--hostname
 		--graphics
 		--seccomp-keep
+		--uid
+		--gid
 	"
 
 	if [[ "$cur" == -* ]]; then
