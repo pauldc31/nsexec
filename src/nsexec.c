@@ -305,7 +305,7 @@ static int child_func(void *arg)
 		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
 
 	/* setup filter here, as a normal user, since we have NO_NEW_PRIVS */
-	if (seccomp_filter && !install_seccomp_filter(seccomp_filter))
+	if (!install_seccomp_filter(seccomp_filter))
 		errx(EXIT_FAILURE, "Could not install seccomp filter");
 
 	if (execvp(argv0, global_argv) == -1)
