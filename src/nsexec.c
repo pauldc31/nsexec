@@ -34,6 +34,7 @@ static char base_path[PATH_MAX];
 static int enable_verbose = 0;
 static int wait_fd = -1;
 static uint64_t val = 1;
+static int pod_pid = -1;
 /* vethXXXX */
 static char veth_h[9] = {}, veth_ns[9] = {};
 const char *exec_file = NULL;
@@ -265,6 +266,27 @@ static void set_maps(pid_t pid, const char *map) {
 		err(EXIT_FAILURE, "write");
 }
 
+static void setup_pod(void)
+{
+	int fd_ns;
+	char ns_path[PATH_MAX];
+	char *itr, *ns_config[] = {
+		"net",
+		NULL
+	};
+
+	for (itr = *ns_config; *itr; itr++) {
+		sprintf(ns_path, "/proc/%d/ns/%s", pod_pid, itr);
+
+		fd_ns = open(ns_path, O_RDONLY);
+		if (fd_ns == -1)
+			err(EXIT_FAILURE, "ns_path: %s", ns_path);
+
+		if (setns(fd_ns, 0) == -1)
+			err(EXIT_FAILURE, "setns: %s", itr);
+	}
+}
+
 static int child_func(void *arg)
 {
 	const char *argv0;
@@ -277,6 +299,9 @@ static int child_func(void *arg)
 	/* blocked by parent process */
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
+
+	if (pod_pid != -1)
+		setup_pod();
 
 	setup_mountns();
 
@@ -341,7 +366,7 @@ int main(int argc, char **argv)
 {
 	pid_t pid;
 	child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
-	int opt, pstatus, pod_pid = -1;
+	int opt, pstatus;
 
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
