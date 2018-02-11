@@ -68,7 +68,6 @@ bool default_whitelist(void)
 	}
 
 	for (i = syscall_whitelist; *i != -1; i++) {
-		printf("%d\n", *i);
 		if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, *i, 0) < 0) {
 			fprintf(stderr, "Couldn't add rule for syscall %d\n", *i);
 			return false;
