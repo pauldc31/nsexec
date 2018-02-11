@@ -275,9 +275,8 @@ static int child_func(void *arg)
 		err(EXIT_FAILURE, "prctl PR_SET_PRDEATHSIG");
 
 	/* blocked by parent process */
-	if (c_args & CLONE_NEWUSER || c_args & CLONE_NEWNET)
-		if (read(wait_fd, &val, sizeof(val)) < 0)
-			err(EXIT_FAILURE, "read error before setting mountns");
+	if (read(wait_fd, &val, sizeof(val)) < 0)
+		err(EXIT_FAILURE, "read error before setting mountns");
 
 	setup_mountns();
 
@@ -323,8 +322,9 @@ static void usage(const char *argv0)
 		"--graphics             Bind xorg/wayland files into the container\n"
 		"--help                 Print this message\n"
 		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
-		"--uid                  Specify an UID to be executed inside the container"
-		"--gid                  Specify an GID to be executed inside the container"
+		"--uid                  Specify an UID to be executed inside the container\n"
+		"--gid                  Specify an GID to be executed inside the container\n"
+		"--same-pod-of          Specify a pid to share the same namespaces (can't be used with unshare flags\n"
 		"--unshare-all          Create all supported namespaces\n"
 		"--unshare-ipc          Create new IPC namespace\n"
 		"--unshare-net          Create new network namespace\n"
@@ -340,8 +340,8 @@ static void usage(const char *argv0)
 int main(int argc, char **argv)
 {
 	pid_t pid;
-	child_args = SIGCHLD | CLONE_NEWNS;
-	int opt, pstatus;
+	child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
+	int opt, pstatus, pod_pid = -1;
 
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
@@ -353,11 +353,11 @@ int main(int argc, char **argv)
 		{"unshare-net", no_argument, 0, 'n'},
 		{"unshare-pid", no_argument, 0, 'p'},
 		{"unshare-uts", no_argument, 0, 'u'},
-		{"unshare-user", no_argument, 0, 'U'},
 		{"graphics", no_argument, 0, 'g'},
 		{"verbose", no_argument, 0, 'v'},
 		{"uid", required_argument, 0, 'x'},
 		{"gid", required_argument, 0, 'X'},
+		{"same-pod-of", required_argument, 0, 'P'},
 		{0, 0, 0, 0},
 	};
 
@@ -369,7 +369,7 @@ int main(int argc, char **argv)
 		switch (opt) {
 		case 'a':
 			child_args |= CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWPID
-				| CLONE_NEWUTS | CLONE_NEWUSER;
+				| CLONE_NEWUTS;
 			break;
 		case 'i':
 			child_args |= CLONE_NEWIPC;
@@ -382,9 +382,6 @@ int main(int argc, char **argv)
 			break;
 		case 'u':
 			child_args |= CLONE_NEWUTS;
-			break;
-		case 'U':
-			child_args |= CLONE_NEWUSER;
 			break;
 		case 'e':
 			exec_file = optarg;
@@ -417,6 +414,14 @@ int main(int argc, char **argv)
 				errx(EXIT_FAILURE, "Invalid gid: %s", optarg);
 			break;
 		}
+		case 'P':
+		{
+			char *endptr;
+			pod_pid = strtol(optarg, &endptr, 10);
+			if (ns_group < 0 || endptr[0] != 0)
+				errx(EXIT_FAILURE, "Invalid pid: %s", optarg);
+			break;
+		}
 		case 'h':
 			usage(argv[0]);
 			exit(EXIT_FAILURE);
@@ -430,6 +435,11 @@ int main(int argc, char **argv)
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
 			       "option");
 
+	if (pod_pid != -1 && child_args ^ (SIGCHLD | CLONE_NEWNS |
+				CLONE_NEWUSER))
+		errx(EXIT_FAILURE, "--same-pod-of can't be used with unshare "
+					"flags\n");
+
 	/* use the unparsed options in execvp later */
 	global_argv = argv + optind;
 
@@ -440,11 +450,10 @@ int main(int argc, char **argv)
 	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
 		err(EXIT_FAILURE, "mkdir base_path err");
 
-	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET) {
-		wait_fd = eventfd(0, EFD_CLOEXEC);
-		if (wait_fd == -1)
-			err(EXIT_FAILURE, "eventfd");
-	}
+	/* this will make the child process to wait for the parent setup */
+	wait_fd = eventfd(0, EFD_CLOEXEC);
+	if (wait_fd == -1)
+		err(EXIT_FAILURE, "eventfd");
 
 	if (child_args & CLONE_NEWNET)
 		setup_veth_names();
@@ -455,17 +464,15 @@ int main(int argc, char **argv)
 	if (pid == -1)
 		err(EXIT_FAILURE, "clone");
 
-	if (child_args & CLONE_NEWUSER) {
-		set_maps(pid, "uid_map");
-		set_maps(pid, "gid_map");
-	}
+	set_maps(pid, "uid_map");
+	set_maps(pid, "gid_map");
 
 	if (child_args & CLONE_NEWNET)
 		create_bridge(pid, veth_h, veth_ns);
 
-	if (child_args & CLONE_NEWUSER || child_args & CLONE_NEWNET)
-		if (write(wait_fd, &val, sizeof(val)) < 0)
-			err(EXIT_FAILURE, "write error on signaling child process");
+	/* write to eventfd after setting uid maps and network if needed */
+	if (write(wait_fd, &val, sizeof(val)) < 0)
+		err(EXIT_FAILURE, "write error on signaling child process");
 
 	if (waitpid(pid, &pstatus, 0) == -1)
 		err(EXIT_FAILURE, "waitpid");
