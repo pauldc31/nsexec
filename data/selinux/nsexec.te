@@ -1,0 +1,22 @@
+policy_module(nsexec,1.0.0)
+
+type nsexec_t;
+
+type nsexec_file_t;
+files_type(nsexec_file_t);
+role system_r types { nsexec_t nsexec_file_t };
+
+gen_require(`
+	type proc_t;
+	type unconfined_t;
+');
+
+# transition on exec
+#allow unconfined_t nsexec_t:process transition;
+
+#can_exec(nsexec_t, nsexec_file_t)
+
+# transition from  unconfined_t to nsexec_t 
+#allow unconfined_t nsexec_t:process dyntransition;
+
+allow nsexec_t proc_t:dir mounton;

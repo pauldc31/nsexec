@@ -1,0 +1,2 @@
+#/usr/bin/nsexec.*	--	gen_context(system_u:object_r:nsexec_t,s0)
+/usr/bin/nsexec.*	--	gen_context(system_u:object_r:container_runtime_exec_t,s0)
