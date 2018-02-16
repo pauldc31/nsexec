@@ -1,27 +1,14 @@
 policy_module(nsexec, 1.0.0)
 
-#attribute_role nsexec_roles;
-#roleattribute system_r nsexec_roles;
+userdom_unpriv_user_template(nsexec);
 
-type nsexec_t;
 type nsexec_exec_t;
-application_domain(nsexec_t, nsexec_exec_t)
-#role nsexec_roles types nsexec_t;
+domain_entry_file(nsexec_t, nsexec_exec_t);
 
-#permissive nsexec_t;
+gen_require(`
+	type unconfined_t;
+');
 
-########################################
-#
-# nsexec local policy
-#
-#allow nsexec_t self:capability { sys_admin sys_chroot };
-#allow nsexec_t self:process { fork };
-
-#allow nsexec_t self:fifo_file manage_fifo_file_perms;
-#allow nsexec_t self:unix_stream_socket create_stream_socket_perms;
-
-#domain_use_interactive_fds(nsexec_t)
-
-#files_read_etc_files(nsexec_t)
-
-#miscfiles_read_localization(nsexec_t)
+allow unconfined_t nsexec_t:process transition;
+can_exec(nsexec_t, nsexec_exec_t);
+allow unconfined_t nsexec_t:process dyntransition;
