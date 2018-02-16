@@ -1,25 +1,27 @@
-policy_module(nsexec,1.0.0)
+policy_module(nsexec, 1.0.0)
+
+#attribute_role nsexec_roles;
+#roleattribute system_r nsexec_roles;
 
 type nsexec_t;
+type nsexec_exec_t;
+application_domain(nsexec_t, nsexec_exec_t)
+#role nsexec_roles types nsexec_t;
 
-type nsexec_file_t;
-files_type(nsexec_file_t);
-role system_r types { nsexec_t nsexec_file_t };
+#permissive nsexec_t;
 
-gen_require(`
-	type bin_t;
-	type proc_t;
-	type shell_exec_t;
-	type unconfined_t;
-');
+########################################
+#
+# nsexec local policy
+#
+#allow nsexec_t self:capability { sys_admin sys_chroot };
+#allow nsexec_t self:process { fork };
 
-# transition on exec
-#allow unconfined_t nsexec_t:process transition;
+#allow nsexec_t self:fifo_file manage_fifo_file_perms;
+#allow nsexec_t self:unix_stream_socket create_stream_socket_perms;
 
-can_exec(nsexec_t, nsexec_file_t)
+#domain_use_interactive_fds(nsexec_t)
 
-# transition from  unconfined_t to nsexec_t 
-#allow unconfined_t nsexec_t:process dyntransition;
+#files_read_etc_files(nsexec_t)
 
-allow nsexec_t bin_t:dir { getattr open read search };
-allow unconfined_t nsexec_t:file { execute getattr read };
+#miscfiles_read_localization(nsexec_t)
