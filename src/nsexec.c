@@ -25,6 +25,7 @@
 
 #include "ns_network.h"
 #include "ns_seccomp.h"
+#include "lsm.h"
 
 #define STACK_SIZE (1024 * 1024)
 static char child_stack[STACK_SIZE];
@@ -40,6 +41,7 @@ const char *exec_file = NULL;
 const char *hostname = NULL;
 static bool graphics_enabled = false;
 static char *seccomp_filter = NULL;
+static char *lsm_context = NULL;
 static int ns_user = 0;
 static int ns_group = 0;
 char **global_argv;
@@ -303,6 +305,9 @@ static int child_func(void *arg)
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
 		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
 
+	if (!set_context(lsm_context))
+		errx(EXIT_FAILURE, "Could not set the LSM context");
+
 	/* setup filter here, as a normal user, since we have NO_NEW_PRIVS */
 	if (!install_seccomp_filter(seccomp_filter))
 		errx(EXIT_FAILURE, "Could not install seccomp filter");
@@ -321,10 +326,11 @@ static void usage(const char *argv0)
 		"--exec                 Execute the specified file inside the sandbox\n"
 		"--graphics             Bind xorg/wayland files into the container\n"
 		"--help                 Print this message\n"
-		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
 		"--uid                  Specify an UID to be executed inside the container\n"
 		"--gid                  Specify an GID to be executed inside the container\n"
 		"--same-pod-of          Specify a pid to share the same namespaces (can't be used with unshare flags\n"
+		"--seccomp-keep         Enable seccomp by adding only the specified syscalls to whitelist\n"
+		"--lsm-context          Specify a cotext to be used in SELinux\n"
 		"--unshare-all          Create all supported namespaces\n"
 		"--unshare-ipc          Create new IPC namespace\n"
 		"--unshare-net          Create new network namespace\n"
@@ -358,11 +364,12 @@ int main(int argc, char **argv)
 		{"uid", required_argument, 0, 'x'},
 		{"gid", required_argument, 0, 'X'},
 		{"same-pod-of", required_argument, 0, 'P'},
+		{"lsm-context", required_argument, 0, 'l'},
 		{0, 0, 0, 0},
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUvk:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUvk:l:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -422,6 +429,9 @@ int main(int argc, char **argv)
 				errx(EXIT_FAILURE, "Invalid pid: %s", optarg);
 			break;
 		}
+		case 'l':
+			lsm_context = optarg;
+			break;
 		case 'h':
 			usage(argv[0]);
 			exit(EXIT_FAILURE);

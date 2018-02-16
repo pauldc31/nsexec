@@ -17,6 +17,7 @@ _nsexec() {
 		--seccomp-keep
 		--uid
 		--gid
+		--lsm-context
 	"
 
 	if [[ "$cur" == -* ]]; then
