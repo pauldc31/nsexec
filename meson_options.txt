@@ -1,0 +1,6 @@
+option(
+      'enable-selinux',
+      type : 'boolean',
+      value: false,
+      description: 'Enable SELinux in nsexec'
+)

@@ -38,11 +38,21 @@ if not dep_libcap.found()
 	dep_libcap = dependency('libcap-ng')
 endif
 
-executable('nsexec', 'src/nsexec.c'
-		    , 'src/ns_seccomp.c'
-		    , 'src/ns_network.c'
+libs = [dep_libnl, dep_uuid, dep_libcap, dep_seccomp]
+
+enable_selinux = get_option('enable-selinux')
+if enable_selinux
+	libs += [dependency('libselinux')]
+	add_project_arguments('-DHAVE_SELINUX', language: 'c')
+endif
+
+executable('nsexec'
+	, ['src/nsexec.c'
+		, 'src/ns_seccomp.c'
+		, 'src/ns_network.c'
+		, 'src/lsm.c']
 	, install: true
-	, dependencies: [dep_libcap, dep_libnl, dep_uuid, dep_seccomp])
+	, dependencies: libs)
 
 executable('nsexec_nic', 'src/nsexec_nic.c'
 	, install: true
