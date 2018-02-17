@@ -1,14 +1,48 @@
 policy_module(nsexec, 1.0.0)
 
-userdom_unpriv_user_template(nsexec);
-
+type nsexec_t;
 type nsexec_exec_t;
-domain_entry_file(nsexec_t, nsexec_exec_t);
 
 gen_require(`
+	class chr_file { append read write ioctl };
+	class dir { search write };
+	class file { execute open read map getattr entrypoint };
+	class lnk_file { read };
+	role unconfined_r;
+	type devpts_t;
+	type ld_so_t;
+	type ld_so_cache_t;
+	type lib_t;
 	type unconfined_t;
+	type user_devpts_t;
 ');
 
-allow unconfined_t nsexec_t:process transition;
-can_exec(nsexec_t, nsexec_exec_t);
-allow unconfined_t nsexec_t:process dyntransition;
+# permit an uncofined process to start nsexec (nsexec_exec_t label)
+allow unconfined_t nsexec_t:file { execute read open map };
+
+# permit a process with role unconfined_r to transition to nsexec_t type
+role unconfined_r types nsexec_t;
+
+# when a unconfined process executes nsexec, change to nsexec domain
+type_transition unconfined_t nsexec_exec_t:process nsexec_t;
+
+
+# give nsexec_t permission to execute nsexec_exec_t after the transition
+allow nsexec_t nsexec_exec_t:file { execute read map };
+
+# can be used as a transition to a new domain
+allow nsexec_t nsexec_exec_t:file { entrypoint };
+
+# after the transition, allow nsexec to setup the container environment
+# mounting devpts inside the container
+allow nsexec_t devpts_t:filesystem { mount };
+allow nsexec_t user_devpts_t:chr_file { append read write ioctl getattr };
+
+# access to ld
+allow nsexec_t ld_so_t:file { execute open getattr map read };
+allow nsexec_t ld_so_cache_t:file { execute open getattr map read };
+
+# access to /usr/lib64/ld-2.26.so and all other libraries
+allow nsexec_t lib_t:dir { search map };
+allow nsexec_t lib_t:file { read getattr open map execute };
+allow nsexec_t lib_t:lnk_file { read };
