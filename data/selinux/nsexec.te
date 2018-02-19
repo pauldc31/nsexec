@@ -4,21 +4,46 @@ type nsexec_t;
 type nsexec_exec_t;
 
 gen_require(`
-	class chr_file { append read write ioctl };
-	class dir { search write };
+	class cap_userns { sys_admin net_admin sys_chroot };
+	class capability { net_admin };
+	class chr_file { open append read write ioctl };
+	class dir { add_name search write };
+	class fd { use };
 	class file { execute open read map getattr entrypoint };
+	class filesystem { mount getattr unmount };
 	class lnk_file { read };
+	class netlink_route_socket { bind create getattr nlmsg_read nlmsg_write read setopt write };
 	role unconfined_r;
+	type bin_t;
 	type devpts_t;
+	type etc_t;
+	type fs_t;
 	type ld_so_t;
 	type ld_so_cache_t;
 	type lib_t;
+	type locale_t;
+	type proc_t;
+	type root_t;
+	type security_t;
+	type sysfs_t;
+	type tmp_t;
+	type tmpfs_t;
 	type unconfined_t;
 	type user_devpts_t;
+	type usr_t;
 ');
 
+################################################################
+### initial setup for an unconfined process to launch nsexec ###
+###############################################################
+
 # permit an uncofined process to start nsexec (nsexec_exec_t label)
-allow unconfined_t nsexec_t:file { execute read open map };
+allow unconfined_t nsexec_exec_t:file { execute read open map getattr };
+
+# permit the transition to the new domain, and noatsecure, because nsexec calls
+# nsexec_nic, which have CAP_NET_ADMIN
+# also, set signal and hard limit inheritance
+allow unconfined_t nsexec_t:process { transition noatsecure siginh rlimitinh };
 
 # permit a process with role unconfined_r to transition to nsexec_t type
 role unconfined_r types nsexec_t;
@@ -26,23 +51,89 @@ role unconfined_r types nsexec_t;
 # when a unconfined process executes nsexec, change to nsexec domain
 type_transition unconfined_t nsexec_exec_t:process nsexec_t;
 
-
 # give nsexec_t permission to execute nsexec_exec_t after the transition
-allow nsexec_t nsexec_exec_t:file { execute read map };
+# allow execute_no_trans because of nsexec_nic
+allow nsexec_t nsexec_exec_t:file { execute_no_trans open execute read map entrypoint };
 
-# can be used as a transition to a new domain
-allow nsexec_t nsexec_exec_t:file { entrypoint };
+#########################################################
+### set the permission for nsexec to access resources ###
+#########################################################
 
 # after the transition, allow nsexec to setup the container environment
 # mounting devpts inside the container
-allow nsexec_t devpts_t:filesystem { mount };
-allow nsexec_t user_devpts_t:chr_file { append read write ioctl getattr };
+allow nsexec_t devpts_t:filesystem { mount getattr };
+allow nsexec_t user_devpts_t:chr_file { open append read write ioctl getattr };
 
 # access to ld
 allow nsexec_t ld_so_t:file { execute open getattr map read };
 allow nsexec_t ld_so_cache_t:file { execute open getattr map read };
 
+# allow nsexec to read links from 
+allow nsexec_t bin_t:lnk_file { read };
+
 # access to /usr/lib64/ld-2.26.so and all other libraries
-allow nsexec_t lib_t:dir { search map };
+allow nsexec_t lib_t:dir { search getattr };
 allow nsexec_t lib_t:file { read getattr open map execute };
 allow nsexec_t lib_t:lnk_file { read };
+
+# mount procfs inside the container
+allow nsexec_t proc_t:filesystem { mount };
+allow nsexec_t proc_t:lnk_file { read };
+allow nsexec_t proc_t:dir { search getattr read open };
+
+# by using selinux in nsexec, allow it to check for /sys/fs
+allow nsexec_t sysfs_t:dir { search };
+
+# allow access to /sys/fs/selinux
+allow nsexec_t security_t:filesystem { getattr };
+
+# access to /etc
+allow nsexec_t etc_t:dir { search };
+allow nsexec_t etc_t:file { getattr open read };
+
+# nsexec create a new dir in /tmp
+allow nsexec_t tmp_t:dir { add_name create write mounton };
+
+# allow mounting /usr
+allow nsexec_t usr_t:filesystem { mount };
+allow nsexec_t usr_t:dir { mounton };
+
+# allow mounting a new rootfs inside the container
+allow nsexec_t root_t:dir { mounton write search };
+
+# mount tmpfs inside the container
+allow nsexec_t tmpfs_t:dir { add_name create mounton search write };
+allow nsexec_t tmpfs_t:file { create mounton open write };
+allow nsexec_t tmpfs_t:filesystem { mount };
+allow nsexec_t tmpfs_t:lnk_file { create };
+
+# access to locale file
+allow nsexec_t locale_t:dir { search read getattr open };
+allow nsexec_t locale_t:file { open getattr read };
+
+# FIXME: fix dev/pts/3 access
+allow nsexec_t unconfined_t:fd { use };
+
+#######################################################
+### set permission for the nsexec process ###
+#######################################################
+
+# allow to fork, to get all caps, and to set a new selinux domain
+allow nsexec_t self:process { fork getcap setexec };
+
+# allow the user namespace to execute a binary with CAP_NET_ADMIN (nsexec_nic)
+# and to execute chroot, and to be sys_admin inside the container
+allow nsexec_t self:cap_userns { sys_admin net_admin sys_chroot };
+allow nsexec_t self:capability { net_admin };
+
+# alloq netlink (used by libnl)
+allow nsexec_t self:netlink_route_socket { bind create getattr nlmsg_read nlmsg_write read setopt write };
+
+# check direcotry inside the container
+allow nsexec_t self:dir { search };
+
+# create files inside the container
+allow nsexec_t self:file { open read write };
+
+# allo nsexec to unmount (the binary mount and do a lazy unmount for tmpfs
+allow nsexec_t fs_t:filesystem { unmount };
