@@ -3,6 +3,10 @@ policy_module(nsexec, 1.0.0)
 type nsexec_t;
 type nsexec_exec_t;
 
+# define domain, necessary to set the transition from unconfined to nsexec_t
+domain_type(nsexec_t);
+domain_entry_file(nsexec_t, nsexec_exec_t);
+
 gen_require(`
 	class cap_userns { sys_admin net_admin sys_chroot };
 	class capability { net_admin };
@@ -13,6 +17,8 @@ gen_require(`
 	class filesystem { mount getattr unmount };
 	class lnk_file { read };
 	class netlink_route_socket { bind create getattr nlmsg_read nlmsg_write read setopt write };
+	class process { getcap fork setexec rlimitinh siginh noatsecure transition setpgid };
+	class process2 { nnp_transition };
 	role unconfined_r;
 	type bin_t;
 	type devpts_t;
@@ -72,7 +78,7 @@ allow nsexec_t ld_so_cache_t:file { execute open getattr map read };
 allow nsexec_t bin_t:lnk_file { read };
 
 # access to /usr/lib64/ld-2.26.so and all other libraries
-allow nsexec_t lib_t:dir { search getattr };
+allow nsexec_t lib_t:dir { search getattr map };
 allow nsexec_t lib_t:file { read getattr open map execute };
 allow nsexec_t lib_t:lnk_file { read };
 
@@ -119,7 +125,8 @@ allow nsexec_t unconfined_t:fd { use };
 #######################################################
 
 # allow to fork, to get all caps, and to set a new selinux domain
-allow nsexec_t self:process { fork getcap setexec };
+allow nsexec_t self:process { fork getcap setexec setpgid };
+allow nsexec_t self:process2 { nnp_transition };
 
 # allow the user namespace to execute a binary with CAP_NET_ADMIN (nsexec_nic)
 # and to execute chroot, and to be sys_admin inside the container
