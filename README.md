@@ -16,11 +16,13 @@ Dependencies:
 	libcap
 	libnl-route-3.0
 	libseccomp
+	libselinux (optinal)
 	libuuid
 
 nsexec uses meson to as build system. To build and install nsexec:
 
 	meson build
+	(to enable selinux: meson -D enable-selinux=true build)
 	cd build
 	ninja
 	sudo ninja install
