@@ -21,7 +21,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <uuid/uuid.h>
 
 #include "ns_network.h"
 #include "ns_seccomp.h"
@@ -36,7 +35,7 @@ static int enable_verbose = 0;
 static int wait_fd = -1;
 static uint64_t val = 1;
 /* vethXXXX */
-static char veth_h[9] = {}, veth_ns[9] = {};
+static char veth_h[9] = {0}, veth_ns[9] = {0};
 const char *exec_file = NULL;
 const char *hostname = NULL;
 static bool graphics_enabled = false;
@@ -56,23 +55,6 @@ static inline void verbose(char *fmt, ...)
 		vprintf(fmt, ap);
 		va_end(ap);
 	}
-}
-
-static void setup_veth_names(void)
-{
-	static uuid_t gen_uuid;
-	char uuid_parsed[37];
-
-	uuid_generate_random(gen_uuid);
-	uuid_unparse_upper(gen_uuid, uuid_parsed);
-
-	/* copy just the first foud characters from uuid for veth_h */
-	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
-		err(EXIT_FAILURE, "building veth_h");
-
-	/* copy the next four characters from the start of the uuid */
-	if (snprintf(veth_ns, 9, "veth%s", uuid_parsed + 4) < 0)
-		err(EXIT_FAILURE, "building veth_ns");
 }
 
 static void setup_mountns(void)
@@ -466,7 +448,7 @@ int main(int argc, char **argv)
 		err(EXIT_FAILURE, "eventfd");
 
 	if (child_args & CLONE_NEWNET)
-		setup_veth_names();
+		setup_veth_names(veth_h, veth_ns);
 
 	/* stack grows downward */
 	pid = clone(child_func, child_stack + STACK_SIZE, child_args

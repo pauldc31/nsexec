@@ -8,11 +8,31 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <uuid/uuid.h>
 
 enum {
 	CREATE_BRIDGE,
 	DELETE_BRIDGE
 };
+
+void setup_veth_names(char *veth_h, char *veth_ns)
+{
+	static uuid_t gen_uuid;
+	char uuid_parsed[37];
+
+	uuid_generate_random(gen_uuid);
+	uuid_unparse_upper(gen_uuid, uuid_parsed);
+
+	printf("%ld %s\n", strlen(veth_h), veth_h);
+
+	/* copy just the first foud characters from uuid for veth_h */
+	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
+		err(EXIT_FAILURE, "building veth_h");
+
+	/* copy the next four characters from the start of the uuid */
+	if (snprintf(veth_ns, 9, "veth%s", uuid_parsed + 4) < 0)
+		err(EXIT_FAILURE, "building veth_ns");
+}
 
 void setup_container_network(char *veth_ns)
 {
