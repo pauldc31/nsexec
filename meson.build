@@ -47,10 +47,13 @@ if enable_selinux
 endif
 
 executable('nsexec'
-	, ['src/nsexec.c'
-		, 'src/ns_seccomp.c'
+	, [
+		'src/lsm.c'
+		, 'src/nsexec.c'
+		, 'src/ns_mount.c'
 		, 'src/ns_network.c'
-		, 'src/lsm.c']
+		, 'src/ns_seccomp.c'
+	]
 	, install: true
 	, dependencies: libs)
 
