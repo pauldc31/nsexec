@@ -19,17 +19,19 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "helper.h"
 #include "ns_mount.h"
 #include "ns_network.h"
 #include "ns_seccomp.h"
 #include "lsm.h"
+
+int enable_verbose = 0;
 
 #define STACK_SIZE (1024 * 1024)
 static char child_stack[STACK_SIZE];
 
 static int child_args;
 static char base_path[PATH_MAX];
-static int enable_verbose = 0;
 static int wait_fd = -1;
 static uint64_t val = 1;
 /* vethXXXX */
@@ -42,18 +44,6 @@ static char *lsm_context = NULL;
 static int ns_user = 0;
 static int ns_group = 0;
 char **global_argv;
-
-__attribute__((format (printf, 1, 2)))
-static inline void verbose(char *fmt, ...)
-{
-	va_list ap;
-
-	if (enable_verbose) {
-		va_start(ap, fmt);
-		vprintf(fmt, ap);
-		va_end(ap);
-	}
-}
 
 static int child_func(void *arg)
 {

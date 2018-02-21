@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "helper.h"
+
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 
@@ -14,14 +16,14 @@ bool set_context(char *context)
 	if (!context)
 		context = DEFAULT_CONTEXT;
 
-	printf("USING SELINUX: %s\n", context);
+	verbose("Using SELinux context: %s\n", context);
 
 	if (setexeccon_raw(context) < 0) {
 		perror("setexeccon");
 		return false;
 	}
 #else
-	printf("LSM NOT DEFINED\n");
+	verbose("LSM not defined\n");
 #endif
 	return true;
 }
