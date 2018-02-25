@@ -149,6 +149,17 @@ void setup_mountns(int child_args, char *base_path,
 			if (mount("oldroot/tmp/.X11-unix", "newroot/tmp/.X11-unix"
 				, NULL, MS_BIND | MS_REC, NULL) < 0)
 				err(EXIT_FAILURE, "bind mount X11");
+
+		} else if (!strncmp(session, "wayland", 7)) {
+			/*if (creat("newroot/tmp/wayland-0", 0666) < 0)*/
+				/*err(EXIT_FAILURE, "creating wayland-0 file");*/
+
+			if (symlink("oldroot/run/user/1000/wayland-0",
+				"newroot/tmp/wayland-0") < 0)
+				err(EXIT_FAILURE, "symlink Wayland");
+
+			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
+				err(EXIT_FAILURE, "setenv failed");
 		}
 	}
 
