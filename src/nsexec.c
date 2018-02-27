@@ -43,6 +43,7 @@ static int ns_user = 0;
 static int ns_group = 0;
 static struct passwd *ns_pwd;
 static int child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
+static int pod_pid = -1;
 char **global_argv;
 
 static int child_func(void)
@@ -122,11 +123,9 @@ static void usage(const char *argv0)
 	);
 }
 
-int main(int argc, char **argv)
+static void handle_arguments(int argc, char **argv)
 {
-	pid_t pid;
-	int opt, pstatus, pod_pid = -1;
-
+	int opt;
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
 		{"graphics", no_argument, 0, 'g'},
@@ -218,6 +217,14 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
+}
+
+int main(int argc, char **argv)
+{
+	pid_t pid;
+	int pstatus;
+
+	handle_arguments(argc, argv);
 
 	if (hostname && !(child_args & CLONE_NEWUTS))
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
