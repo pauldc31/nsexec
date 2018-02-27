@@ -97,6 +97,7 @@ bool default_whitelist(void)
 		SCMP_SYS(getuid),
 		SCMP_SYS(getxattr),
 		SCMP_SYS(lgetxattr),
+		SCMP_SYS(link),
 		SCMP_SYS(listen),
 		SCMP_SYS(llistxattr),
 		SCMP_SYS(lseek),
