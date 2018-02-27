@@ -29,7 +29,6 @@
 
 int enable_verbose = 0;
 
-static char base_path[PATH_MAX];
 static int wait_fd = -1;
 static uint64_t val = 1;
 /* vethXXXX */
@@ -58,7 +57,7 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(child_args, base_path, graphics_enabled, ns_pwd
+	setup_mountns(child_args, graphics_enabled, ns_pwd
 							? ns_pwd->pw_name
 							: NULL);
 
@@ -237,13 +236,6 @@ int main(int argc, char **argv)
 
 	/* use the unparsed options in execvp later */
 	global_argv = argv + optind;
-
-	/* prepare sandbox base dir */
-	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
-		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
-
-	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
-		err(EXIT_FAILURE, "mkdir base_path err");
 
 	/* this will make the child process to wait for the parent setup */
 	wait_fd = eventfd(0, EFD_CLOEXEC);

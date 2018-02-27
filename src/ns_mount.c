@@ -56,8 +56,7 @@ void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 		err(EXIT_FAILURE, "write");
 }
 
-void setup_mountns(int child_args, char *base_path, bool graphics_enabled,
-		char *username)
+void setup_mountns(int child_args, bool graphics_enabled, char *username)
 {
 	struct mount_setup {
 		char *dirn;
@@ -85,9 +84,16 @@ void setup_mountns(int child_args, char *base_path, bool graphics_enabled,
 	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
 	/* /oldroot/ + dev/ + urandom*/
 	/* /newroot/ + dev/ + urandom*/
-	char dev_opath[21], dev_npath[21];
+	char dev_opath[21], dev_npath[21], base_path[PATH_MAX];
 	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
 		"urandom", NULL};
+
+	/* prepare sandbox base dir */
+	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
+		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
+
+	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
+		err(EXIT_FAILURE, "mkdir base_path err");
 
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
