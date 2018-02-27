@@ -16,6 +16,7 @@
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -28,10 +29,6 @@
 
 int enable_verbose = 0;
 
-#define STACK_SIZE (1024 * 1024)
-static char child_stack[STACK_SIZE];
-
-static int child_args;
 static char base_path[PATH_MAX];
 static int wait_fd = -1;
 static uint64_t val = 1;
@@ -45,12 +42,12 @@ static char *lsm_context = NULL;
 static int ns_user = 0;
 static int ns_group = 0;
 static struct passwd *ns_pwd;
+static int child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
 char **global_argv;
 
-static int child_func(void *arg)
+static int child_func(void)
 {
 	const char *argv0;
-	int c_args = *(int *)arg;
 	cap_t cap = cap_get_proc();
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0, 0) == -1)
@@ -60,12 +57,12 @@ static int child_func(void *arg)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(c_args, base_path, graphics_enabled, ns_pwd
+	setup_mountns(child_args, base_path, graphics_enabled, ns_pwd
 							? ns_pwd->pw_name
 							: NULL);
 
 	/* only configure network is a new netns is created */
-	if (c_args & CLONE_NEWNET)
+	if (child_args & CLONE_NEWNET)
 		setup_container_network(veth_ns);
 
 	argv0 = (exec_file) ? exec_file : global_argv[0];
@@ -76,7 +73,7 @@ static int child_func(void *arg)
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
 	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
 
-	if (c_args & CLONE_NEWUTS && hostname) {
+	if (child_args & CLONE_NEWUTS && hostname) {
 		verbose("hostname: %s\n", hostname);
 
 		if (sethostname(hostname, strlen(hostname)) == -1)
@@ -128,7 +125,6 @@ static void usage(const char *argv0)
 int main(int argc, char **argv)
 {
 	pid_t pid;
-	child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
 	int opt, pstatus, pod_pid = -1;
 
 	static struct option long_opt[] = {
@@ -254,11 +250,15 @@ int main(int argc, char **argv)
 	ns_pwd = getpwuid(ns_user);
 
 	/* stack grows downward */
-	pid = clone(child_func, child_stack + STACK_SIZE, child_args
-			, (void *)&child_args);
+	pid = syscall(__NR_clone, child_args, NULL);
 	if (pid == -1)
 		err(EXIT_FAILURE, "clone");
 
+	/* child, setup the new tmpfs, and call the proper exec routine */
+	else if (pid == 0)
+		child_func();
+
+	/* parent, set user mapping and the necessary network */
 	set_maps(pid, "uid_map", ns_user, ns_group);
 	set_maps(pid, "gid_map", ns_user, ns_group);
 
@@ -271,11 +271,6 @@ int main(int argc, char **argv)
 
 	if (waitpid(pid, &pstatus, 0) == -1)
 		err(EXIT_FAILURE, "waitpid");
-
-	// FIXME: is this necessary? Does the veth interface in host dies when
-	// the container finishes??
-	//if (child_args & CLONE_NEWNET)
-	//	delete_bridge(pid, veth_h);
 
 	/* return the exit code from the container's process */
 	return WEXITSTATUS(pstatus);
