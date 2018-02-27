@@ -66,14 +66,16 @@ void setup_mountns(int child_args, char *base_path,
 
 	struct mount_setup *mp, mount_list[] = {
 		{"newroot", NULL},
+		{"newroot/bin", "oldroot/bin"},
 		{"newroot/dev", NULL},
 		{"newroot/dev/pts", NULL},
 		{"newroot/dev/shm", NULL},
-		{"newroot/tmp", NULL},
-		{"newroot/usr", "oldroot/usr"},
-		{"newroot/bin", "oldroot/bin"},
+		{"newroot/etc/", NULL},
+		{"newroot/etc/fonts", "oldroot/etc/fonts"},
 		{"newroot/lib", "oldroot/lib"},
 		{"newroot/lib64", "oldroot/lib64"},
+		{"newroot/tmp", NULL},
+		{"newroot/usr", "oldroot/usr"},
 		{NULL, NULL}
 	};
 
@@ -180,7 +182,7 @@ void setup_mountns(int child_args, char *base_path,
 	/* if newpid was specified, mount a new proc */
 	if (child_args & CLONE_NEWPID) {
 		if (mkdir("newroot/proc", 0755) == -1)
-			err(EXIT_FAILURE, "mkdir etc");
+			err(EXIT_FAILURE, "mkdir /proc");
 
 		if (mount("proc", "newroot/proc", "proc", 0, NULL) < 0)
 			err(EXIT_FAILURE, "mount proc");
@@ -205,9 +207,6 @@ void setup_mountns(int child_args, char *base_path,
 
 	/* bind mount new resolv.conf pointing to the bridge connection */
 	if (child_args & CLONE_NEWNET) {
-		if (mkdir("/etc/", 0755) == -1)
-			err(EXIT_FAILURE, "mkdir etc");
-
 		int fd = open("/etc/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 		if ( fd == -1)
 			err(EXIT_FAILURE, "open resolv.conf wronly");
