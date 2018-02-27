@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
+#include <pwd.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h> /* true, false, bool */
@@ -43,6 +44,7 @@ static char *seccomp_filter = NULL;
 static char *lsm_context = NULL;
 static int ns_user = 0;
 static int ns_group = 0;
+static struct passwd *ns_pwd;
 char **global_argv;
 
 static int child_func(void *arg)
@@ -58,7 +60,9 @@ static int child_func(void *arg)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(c_args, base_path, graphics_enabled);
+	setup_mountns(c_args, base_path, graphics_enabled, ns_pwd
+							? ns_pwd->pw_name
+							: NULL);
 
 	/* only configure network is a new netns is created */
 	if (c_args & CLONE_NEWNET)
@@ -129,20 +133,20 @@ int main(int argc, char **argv)
 
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
-		{"hostname", required_argument, 0, 's'},
-		{"seccomp-keep", required_argument, 0, 'k'},
+		{"graphics", no_argument, 0, 'g'},
+		{"gid", required_argument, 0, 'X'},
 		{"help", no_argument, 0, 'h'},
+		{"hostname", required_argument, 0, 's'},
+		{"lsm-context", required_argument, 0, 'l'},
+		{"same-pod-of", required_argument, 0, 'P'},
+		{"seccomp-keep", required_argument, 0, 'k'},
 		{"unshare-all", no_argument, 0, 'a'},
 		{"unshare-ipc", no_argument, 0, 'i'},
 		{"unshare-net", no_argument, 0, 'n'},
 		{"unshare-pid", no_argument, 0, 'p'},
 		{"unshare-uts", no_argument, 0, 'u'},
-		{"graphics", no_argument, 0, 'g'},
-		{"verbose", no_argument, 0, 'v'},
 		{"uid", required_argument, 0, 'x'},
-		{"gid", required_argument, 0, 'X'},
-		{"same-pod-of", required_argument, 0, 'P'},
-		{"lsm-context", required_argument, 0, 'l'},
+		{"verbose", no_argument, 0, 'v'},
 		{0, 0, 0, 0},
 	};
 
@@ -245,6 +249,9 @@ int main(int argc, char **argv)
 
 	if (child_args & CLONE_NEWNET)
 		setup_veth_names(veth_h, veth_ns);
+
+	/* get the username of the user insde the namespace */
+	ns_pwd = getpwuid(ns_user);
 
 	/* stack grows downward */
 	pid = clone(child_func, child_stack + STACK_SIZE, child_args

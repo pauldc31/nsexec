@@ -15,6 +15,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "helper.h"
+
 /* map user 1000 to user 0 (root) inside namespace */
 void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 	int fd, data_len;
@@ -54,10 +56,8 @@ void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 		err(EXIT_FAILURE, "write");
 }
 
-
-
-void setup_mountns(int child_args, char *base_path,
-		bool graphics_enabled)
+void setup_mountns(int child_args, char *base_path, bool graphics_enabled,
+		char *username)
 {
 	struct mount_setup {
 		char *dirn;
@@ -72,6 +72,9 @@ void setup_mountns(int child_args, char *base_path,
 		{"newroot/dev/shm", NULL},
 		{"newroot/etc/", NULL},
 		{"newroot/etc/fonts", "oldroot/etc/fonts"},
+		{"newroot/etc/pki", "oldroot/etc/pki"},
+		{"newroot/etc/ssl", "oldroot/etc/ssl"},
+		{"newroot/home", NULL},
 		{"newroot/lib", "oldroot/lib"},
 		{"newroot/lib64", "oldroot/lib64"},
 		{"newroot/tmp", NULL},
@@ -153,15 +156,35 @@ void setup_mountns(int child_args, char *base_path,
 				err(EXIT_FAILURE, "bind mount X11");
 
 		} else if (!strncmp(session, "wayland", 7)) {
-			/*if (creat("newroot/tmp/wayland-0", 0666) < 0)*/
-				/*err(EXIT_FAILURE, "creating wayland-0 file");*/
-
 			if (symlink("oldroot/run/user/1000/wayland-0",
 				"newroot/tmp/wayland-0") < 0)
 				err(EXIT_FAILURE, "symlink Wayland");
 
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
+		}
+
+		char moz_cert_path[PATH_MAX];
+		char old_moz_cert_path[PATH_MAX];
+		/* if the username is null, the user wasn't being properly
+			 * created (fake user), and don't bother with it
+		 **/
+		if (username) {
+			sprintf(moz_cert_path, "newroot/home/%s", username);
+			if (mkdir(moz_cert_path, 0755) == -1)
+				err(EXIT_FAILURE, "mkdir create home");
+
+			sprintf(moz_cert_path, "newroot/home/%s/%s",
+					username, ".mozilla");
+			if (mkdir(moz_cert_path, 0755) == -1)
+				err(EXIT_FAILURE, "mkdir moz_cert_path");
+
+			sprintf(old_moz_cert_path, "oldroot/home/%s/%s",
+					username, ".mozilla");
+			if (mount(old_moz_cert_path, moz_cert_path, NULL,
+						MS_BIND, NULL) < 0)
+				verbose("User %s does not have .mozzila dir",
+						username);
 		}
 	}
 

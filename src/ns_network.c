@@ -23,8 +23,6 @@ void setup_veth_names(char *veth_h, char *veth_ns)
 	uuid_generate_random(gen_uuid);
 	uuid_unparse_upper(gen_uuid, uuid_parsed);
 
-	printf("%ld %s\n", strlen(veth_h), veth_h);
-
 	/* copy just the first foud characters from uuid for veth_h */
 	if (snprintf(veth_h, 9, "veth%s", uuid_parsed) < 0)
 		err(EXIT_FAILURE, "building veth_h");
