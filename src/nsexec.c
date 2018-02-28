@@ -78,6 +78,8 @@ static int child_func(void)
 
 		if (sethostname(hostname, strlen(hostname)) == -1)
 			err(EXIT_FAILURE, "Unable to set desired hostname");
+		if (setenv("HOSTNAME", hostname, 1) == -1)
+			err(EXIT_FAILURE, "Unable to set HOSTNAME");
 	}
 
 	/* avoid acquiring capabilities form the executable file on execlp */
