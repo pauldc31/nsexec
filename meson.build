@@ -4,8 +4,18 @@ project('nsexec', 'c'
 		'sysconfdir=/etc',
 	])
 
-cc = meson.get_compiler('c')
+pkgconfig = find_program('pkg-config')
+runcmd = run_command(pkgconfig
+	, '--variable=completionsdir'
+	, 'bash-completion')
 
+# assume bash-complete is installed and working
+install_data(sources: 'data/completions/bash/nsexec'
+	, install_dir: runcmd.stdout().strip())
+
+meson.add_install_script('data/post-install.sh')
+
+cc = meson.get_compiler('c')
 c_args = [
 	'-Wextra',
 	'-Werror',
@@ -46,7 +56,11 @@ if enable_selinux
 	add_project_arguments('-DHAVE_SELINUX', language: 'c')
 endif
 
-executable('nsexec'
+executable('nsexec_nic', 'src/nsexec_nic.c'
+	, install: true
+	, dependencies: [dep_libnl])
+
+nsexec = executable('nsexec'
 	, [
 		'src/lsm.c'
 		, 'src/nsexec.c'
@@ -57,17 +71,16 @@ executable('nsexec'
 	, install: true
 	, dependencies: libs)
 
-executable('nsexec_nic', 'src/nsexec_nic.c'
-	, install: true
-	, dependencies: [dep_libnl])
-
-pkgconfig = find_program('pkg-config')
-runcmd = run_command(pkgconfig
-	, '--variable=completionsdir'
-	, 'bash-completion')
-
-# assume bash-complete is installed and working
-install_data(sources: 'data/completions/bash/nsexec'
-	, install_dir: runcmd.stdout().strip())
-
-meson.add_install_script('data/post-install.sh')
+test('help output', nsexec, args: ['-h'])
+test('unshare-net and cat resolv.conf', nsexec, args: ['--unshare-net', '--',
+				'cat', '/etc/resolv.conf'])
+test('set hostname', nsexec, args: ['--unshare-uts', '--hostname', 'dummy',
+			'--', 'sh', '-c', '[ "$HOSTNAME" = "dummy" ]'])
+test('root UID', nsexec, args: ['--unshare-all', '--',
+			'sh', '-c', '[ "$UID" = "0" ]'])
+test('ordinary UID', nsexec, args: ['--unshare-all', '--uid', '1000', '--',
+			'sh', '-c', '[ "$UID" = "1000" ]'])
+test('root GID', nsexec, args: ['--unshare-all', '--',
+			'sh', '-c', '[ "$(id -g)" = "0" ]'])
+test('ordinary GID', nsexec, args: ['--unshare-all', '--gid', '1000', '--',
+			'sh', '-c', '[ "$(id -g)" = "1000" ]'])
