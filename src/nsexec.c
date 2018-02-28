@@ -210,7 +210,7 @@ static void handle_arguments(int argc, char **argv)
 			break;
 		case 'h':
 			usage(argv[0]);
-			exit(EXIT_FAILURE);
+			exit(EXIT_SUCCESS);
 		default:
 			/* don't bother with invalid options here */
 			break;
