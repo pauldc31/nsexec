@@ -56,7 +56,7 @@ void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 		err(EXIT_FAILURE, "write");
 }
 
-void setup_mountns(int child_args, bool graphics_enabled, char *username)
+void setup_mountns(int child_args, bool graphics_enabled)
 {
 	struct mount_setup {
 		char *dirn;
@@ -69,11 +69,7 @@ void setup_mountns(int child_args, bool graphics_enabled, char *username)
 		{"newroot/dev", NULL},
 		{"newroot/dev/pts", NULL},
 		{"newroot/dev/shm", NULL},
-		{"newroot/etc/", NULL},
-		{"newroot/etc/fonts", "oldroot/etc/fonts"},
-		{"newroot/etc/pki", "oldroot/etc/pki"},
-		{"newroot/etc/ssl", "oldroot/etc/ssl"},
-		{"newroot/home", NULL},
+		{"newroot/etc/","oldroot/etc/"},
 		{"newroot/lib", "oldroot/lib"},
 		{"newroot/lib64", "oldroot/lib64"},
 		{"newroot/tmp", NULL},
@@ -169,29 +165,6 @@ void setup_mountns(int child_args, bool graphics_enabled, char *username)
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
 		}
-
-		char moz_cert_path[PATH_MAX];
-		char old_moz_cert_path[PATH_MAX];
-		/* if the username is null, the user wasn't being properly
-			 * created (fake user), and don't bother with it
-		 **/
-		if (username) {
-			sprintf(moz_cert_path, "newroot/home/%s", username);
-			if (mkdir(moz_cert_path, 0755) == -1)
-				err(EXIT_FAILURE, "mkdir create home");
-
-			sprintf(moz_cert_path, "newroot/home/%s/%s",
-					username, ".mozilla");
-			if (mkdir(moz_cert_path, 0755) == -1)
-				err(EXIT_FAILURE, "mkdir moz_cert_path");
-
-			sprintf(old_moz_cert_path, "oldroot/home/%s/%s",
-					username, ".mozilla");
-			if (mount(old_moz_cert_path, moz_cert_path, NULL,
-						MS_BIND, NULL) < 0)
-				verbose("User %s does not have .mozzila dir",
-						username);
-		}
 	}
 
 	struct mount_setup *ms, dev_symlinks[] = {
@@ -233,17 +206,6 @@ void setup_mountns(int child_args, bool graphics_enabled, char *username)
 
 	if (chdir("/") == -1)
 		err(EXIT_FAILURE, "chdir /");
-
-	/* bind mount new resolv.conf pointing to the bridge connection */
-	if (child_args & CLONE_NEWNET) {
-		int fd = open("/etc/resolv.conf", O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-		if ( fd == -1)
-			err(EXIT_FAILURE, "open resolv.conf wronly");
-
-		const char *nameserver = "nameserver 192.168.122.1\n";
-		if (write(fd, nameserver, strlen(nameserver)) == -1)
-			err(EXIT_FAILURE, "write resolve.conf");
-	}
 
 	if (symlink("/dev/pts/ptmx", "/dev/ptmx") == -1)
 		err(EXIT_FAILURE, "symlnk ptmx failed");

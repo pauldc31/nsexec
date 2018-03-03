@@ -40,7 +40,6 @@ static char *seccomp_filter = NULL;
 static char *lsm_context = NULL;
 static int ns_user = 0;
 static int ns_group = 0;
-static struct passwd *ns_pwd;
 static int child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
 static int pod_pid = -1;
 char **global_argv;
@@ -57,9 +56,7 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(child_args, graphics_enabled, ns_pwd
-							? ns_pwd->pw_name
-							: NULL);
+	setup_mountns(child_args, graphics_enabled);
 
 	/* only configure network is a new netns is created */
 	if (child_args & CLONE_NEWNET)
@@ -246,9 +243,6 @@ int main(int argc, char **argv)
 
 	if (child_args & CLONE_NEWNET)
 		setup_veth_names(veth_h, veth_ns);
-
-	/* get the username of the user insde the namespace */
-	ns_pwd = getpwuid(ns_user);
 
 	/* stack grows downward */
 	pid = syscall(__NR_clone, child_args, NULL);
