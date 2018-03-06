@@ -1,23 +1,16 @@
 #define _GNU_SOURCE
 
 #include <err.h>
-#include <errno.h>
 #include <getopt.h>
-#include <limits.h>
-#include <pwd.h>
 #include <sched.h>
-#include <signal.h>
 #include <stdbool.h> /* true, false, bool */
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
-#include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -62,14 +55,6 @@ static int child_func(void)
 	if (child_args & CLONE_NEWNET)
 		setup_container_network(veth_ns);
 
-	argv0 = (exec_file) ? exec_file : global_argv[0];
-	if (!argv0)
-		argv0 = "bash";
-
-	verbose("PID: %d, PPID: %d\n", getpid(), getppid());
-	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
-	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
-
 	if (child_args & CLONE_NEWUTS && hostname) {
 		verbose("hostname: %s\n", hostname);
 
@@ -89,6 +74,14 @@ static int child_func(void)
 	/* setup filter here, as a normal user, since we have NO_NEW_PRIVS */
 	if (!install_seccomp_filter(seccomp_filter))
 		errx(EXIT_FAILURE, "Could not install seccomp filter");
+
+	argv0 = (exec_file) ? exec_file : global_argv[0];
+	if (!argv0)
+		argv0 = "bash";
+
+	verbose("PID: %d, PPID: %d\n", getpid(), getppid());
+	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
+	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
 
 	if (execvp(argv0, global_argv) == -1)
 		err(EXIT_FAILURE, "execvp");
@@ -215,14 +208,6 @@ static void handle_arguments(int argc, char **argv)
 			break;
 		}
 	}
-}
-
-int main(int argc, char **argv)
-{
-	pid_t pid;
-	int pstatus;
-
-	handle_arguments(argc, argv);
 
 	if (hostname && !(child_args & CLONE_NEWUTS))
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
@@ -232,6 +217,14 @@ int main(int argc, char **argv)
 				CLONE_NEWUSER))
 		errx(EXIT_FAILURE, "--same-pod-of can't be used with unshare "
 					"flags\n");
+}
+
+int main(int argc, char **argv)
+{
+	pid_t pid;
+	int pstatus;
+
+	handle_arguments(argc, argv);
 
 	/* use the unparsed options in execvp later */
 	global_argv = argv + optind;
@@ -244,7 +237,6 @@ int main(int argc, char **argv)
 	if (child_args & CLONE_NEWNET)
 		setup_veth_names(veth_h, veth_ns);
 
-	/* stack grows downward */
 	pid = syscall(__NR_clone, child_args, NULL);
 	if (pid == -1)
 		err(EXIT_FAILURE, "clone");
