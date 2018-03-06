@@ -147,6 +147,7 @@ bool default_whitelist(void)
 		SCMP_SYS(sched_getscheduler),
 		SCMP_SYS(sched_setscheduler),
 		SCMP_SYS(sched_setparam),
+		SCMP_SYS(sched_yield),
 		SCMP_SYS(select),
 		SCMP_SYS(sendmsg),
 		SCMP_SYS(sendmmsg),
@@ -182,6 +183,7 @@ bool default_whitelist(void)
 		SCMP_SYS(uname),
 		SCMP_SYS(unlink),
 		SCMP_SYS(unshare), /* firefox */
+		SCMP_SYS(vfork),
 		SCMP_SYS(wait4),
 		SCMP_SYS(waitid),
 		SCMP_SYS(write),
