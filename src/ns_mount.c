@@ -77,12 +77,19 @@ void setup_mountns(int child_args, bool graphics_enabled)
 		{NULL, NULL}
 	};
 
+	const char *session = getenv("XDG_SESSION_TYPE");
+	const char *display = getenv("DISPLAY");
+	const char *term = getenv("TERM");
+
 	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
 	/* /oldroot/ + dev/ + urandom*/
 	/* /newroot/ + dev/ + urandom*/
 	char dev_opath[21], dev_npath[21], base_path[PATH_MAX];
 	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
 		"urandom", NULL};
+
+	if (clearenv())
+		err(EXIT_FAILURE, "clearenv");
 
 	/* prepare sandbox base dir */
 	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
@@ -145,7 +152,6 @@ void setup_mountns(int child_args, bool graphics_enabled)
 
 	/* check for both Xorg or Wayland */
 	if (graphics_enabled) {
-		const char *session = getenv("XDG_SESSION_TYPE");
 		if (!session)
 			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
 
@@ -165,7 +171,17 @@ void setup_mountns(int child_args, bool graphics_enabled)
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
 		}
+
+		if (setenv("DISPLAY", display, 1) < 0)
+			err(EXIT_FAILURE, "set display");
 	}
+
+	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
+				"/usr/local/sbin", 1) < 0)
+		err(EXIT_FAILURE, "set path");
+
+	if (term && setenv("TERM", term, 1) < 0)
+		err(EXIT_FAILURE, "set term");
 
 	struct mount_setup *ms, dev_symlinks[] = {
 		{"/proc/self/fd", "newroot/dev/fd"},
