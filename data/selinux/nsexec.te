@@ -1,11 +1,10 @@
 policy_module(nsexec, 1.0.0)
 
-type nsexec_t;
+# setup the basics of an unprivileged process permissions
+userdom_unpriv_user_template(nsexec)
 type nsexec_exec_t;
 
-# define domain, necessary to set the transition from unconfined to nsexec_t
-domain_type(nsexec_t);
-domain_entry_file(nsexec_t, nsexec_exec_t);
+role system_r types { nsexec_t nsexec_exec_t };
 
 gen_require(`
 	class cap_userns { sys_admin net_admin sys_chroot };
@@ -49,17 +48,13 @@ allow unconfined_t nsexec_exec_t:file { execute read open map getattr };
 # permit the transition to the new domain, and noatsecure, because nsexec calls
 # nsexec_nic, which have CAP_NET_ADMIN
 # also, set signal and hard limit inheritance
-allow unconfined_t nsexec_t:process { transition noatsecure siginh rlimitinh };
-
-# permit a process with role unconfined_r to transition to nsexec_t type
-role unconfined_r types nsexec_t;
-
-# when a unconfined process executes nsexec, change to nsexec domain
-type_transition unconfined_t nsexec_exec_t:process nsexec_t;
+allow unconfined_t nsexec_t:process { dyntransition transition noatsecure siginh rlimitinh };
+can_exec(nsexec_t, nsexec_exec_t)
+#allow unconfined_t nsexec_t:process { dyntransition };
 
 # give nsexec_t permission to execute nsexec_exec_t after the transition
 # allow execute_no_trans because of nsexec_nic
-allow nsexec_t nsexec_exec_t:file { execute_no_trans open execute read map entrypoint };
+allow nsexec_t nsexec_exec_t:file *;
 
 #########################################################
 ### set the permission for nsexec to access resources ###
@@ -67,7 +62,7 @@ allow nsexec_t nsexec_exec_t:file { execute_no_trans open execute read map entry
 
 # after the transition, allow nsexec to setup the container environment
 # mounting devpts inside the container
-allow nsexec_t devpts_t:filesystem { mount getattr };
+allow nsexec_t devpts_t:filesystem { associate mount getattr };
 allow nsexec_t user_devpts_t:chr_file { open append read write ioctl getattr };
 
 # access to ld
@@ -142,5 +137,4 @@ allow nsexec_t self:dir { search };
 # create files inside the container
 allow nsexec_t self:file { open read write };
 
-# allo nsexec to unmount (the binary mount and do a lazy unmount for tmpfs
-allow nsexec_t fs_t:filesystem { unmount };
+fs_unmount_all_fs(lxc_t)
