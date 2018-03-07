@@ -26,6 +26,7 @@ bool default_whitelist(void)
 	int *i;
 	int syscall_whitelist[] = {
 		SCMP_SYS(access),
+		SCMP_SYS(accept4),
 		SCMP_SYS(alarm),
 		SCMP_SYS(arch_prctl),
 		SCMP_SYS(bind),
@@ -46,6 +47,7 @@ bool default_whitelist(void)
 		SCMP_SYS(epoll_create1),
 		SCMP_SYS(epoll_ctl),
 		SCMP_SYS(epoll_wait),
+		SCMP_SYS(epoll_pwait),
 		SCMP_SYS(eventfd),
 		SCMP_SYS(eventfd2),
 		SCMP_SYS(execve),
