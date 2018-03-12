@@ -8,6 +8,9 @@ The nsexec is just an experiment, inspired by [bubblewrap](https://github.com/pr
 and [lxc](https://github.com/lxc/lxc) in order to learn all the concepts used by
 Linux containers, by using the same ideas an techniques used by both project.
 
+This tool is designed to be executed by an oridnary user. So, running as root
+will return an error. User namespace and mount namespaces are used by default.
+
 ### building
 ------------
 

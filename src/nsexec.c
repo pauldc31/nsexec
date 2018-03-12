@@ -227,6 +227,11 @@ int main(int argc, char **argv)
 	pid_t pid;
 	int pstatus;
 
+	/* don't allow this tool be executed as root */
+	if (geteuid() == 0)
+		errx(EXIT_FAILURE, "%s was designed to be executed as non-root."
+				" Aborting", argv[0]);
+
 	handle_arguments(argc, argv);
 
 	/* use the unparsed options in execvp later */
