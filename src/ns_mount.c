@@ -56,7 +56,7 @@ void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 		err(EXIT_FAILURE, "write");
 }
 
-void setup_mountns(int child_args, bool graphics_enabled)
+void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 {
 	struct mount_setup {
 		char *dirn;
@@ -90,6 +90,12 @@ void setup_mountns(int child_args, bool graphics_enabled)
 
 	if (clearenv())
 		err(EXIT_FAILURE, "clearenv");
+
+	if (rootfs) {
+		if (chdir(rootfs) == -1)
+			err(EXIT_FAILURE, "rootfs chdir");
+		return;
+	}
 
 	/* prepare sandbox base dir */
 	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)

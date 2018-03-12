@@ -26,6 +26,7 @@ static int wait_fd = -1;
 static uint64_t val = 1;
 /* vethXXXX */
 static char veth_h[9] = {0}, veth_ns[9] = {0};
+static char *rootfs = NULL;
 const char *exec_file = NULL;
 const char *hostname = NULL;
 static bool graphics_enabled = false;
@@ -49,7 +50,7 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(child_args, graphics_enabled);
+	setup_mountns(child_args, graphics_enabled, rootfs);
 
 	/* only configure network is a new netns is created */
 	if (child_args & CLONE_NEWNET)
@@ -124,6 +125,7 @@ static void handle_arguments(int argc, char **argv)
 		{"help", no_argument, 0, 'h'},
 		{"hostname", required_argument, 0, 's'},
 		{"lsm-context", required_argument, 0, 'l'},
+		{"rootfs", required_argument, 0, 'r'},
 		{"same-pod-of", required_argument, 0, 'P'},
 		{"seccomp-keep", required_argument, 0, 'k'},
 		{"unshare-all", no_argument, 0, 'a'},
@@ -137,7 +139,7 @@ static void handle_arguments(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUvk:l:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -199,6 +201,9 @@ static void handle_arguments(int argc, char **argv)
 		}
 		case 'l':
 			lsm_context = optarg;
+			break;
+		case 'r':
+			rootfs = optarg;
 			break;
 		case 'h':
 			usage(argv[0]);

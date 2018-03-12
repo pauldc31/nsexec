@@ -18,6 +18,7 @@ _nsexec() {
 		--uid
 		--gid
 		--lsm-context
+		--rootfs
 	"
 
 	if [[ "$cur" == -* ]]; then
