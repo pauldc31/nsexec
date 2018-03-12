@@ -213,6 +213,9 @@ static void handle_arguments(int argc, char **argv)
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
 			       "option");
 
+	/* FIXME: pod is not working yet, nsexec would need a new binary with
+	 * CAP_SYS_ROOT to enter in an existing namespace
+	 **/
 	if (pod_pid != -1 && child_args ^ (SIGCHLD | CLONE_NEWNS |
 				CLONE_NEWUSER))
 		errx(EXIT_FAILURE, "--same-pod-of can't be used with unshare "
