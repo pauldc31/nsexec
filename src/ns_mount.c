@@ -33,11 +33,9 @@ static void set_graphics(bool graphics_enabled, const char *session,
 				, NULL, MS_BIND | MS_REC, NULL) < 0)
 				err(EXIT_FAILURE, "bind mount X11");
 		} else if (!strncmp(session, "wayland", 7)) {
-			/*
 			if (symlink("oldroot/run/user/1000/wayland-0",
 				"newroot/tmp/wayland-0") < 0)
 				err(EXIT_FAILURE, "symlink Wayland");
-			*/
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
 		}
