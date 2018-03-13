@@ -17,6 +17,35 @@
 
 #include "helper.h"
 
+static void set_graphics(bool graphics_enabled, const char *session,
+		const char *display)
+{
+	/* check for both Xorg or Wayland */
+	if (graphics_enabled) {
+		if (!session)
+			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
+
+		if (!strncmp(session, "x11", 3)) {
+			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
+				err(EXIT_FAILURE, "mkdir X11 failed");
+
+			if (mount("oldroot/tmp/.X11-unix", "newroot/tmp/.X11-unix"
+				, NULL, MS_BIND | MS_REC, NULL) < 0)
+				err(EXIT_FAILURE, "bind mount X11");
+		} else if (!strncmp(session, "wayland", 7)) {
+			/*
+			if (symlink("oldroot/run/user/1000/wayland-0",
+				"newroot/tmp/wayland-0") < 0)
+				err(EXIT_FAILURE, "symlink Wayland");
+			*/
+			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
+				err(EXIT_FAILURE, "setenv failed");
+		}
+		if (setenv("DISPLAY", display, 1) < 0)
+			err(EXIT_FAILURE, "set display");
+	}
+}
+
 /* map user 1000 to user 0 (root) inside namespace */
 void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 	int fd, data_len;
@@ -84,35 +113,41 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
 	/* /oldroot/ + dev/ + urandom*/
 	/* /newroot/ + dev/ + urandom*/
-	char dev_opath[21], dev_npath[21], base_path[PATH_MAX];
+	char dev_opath[21], dev_npath[21], bpath[PATH_MAX];
 	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
 		"urandom", NULL};
 
 	if (clearenv())
 		err(EXIT_FAILURE, "clearenv");
 
-	if (rootfs) {
-		if (chdir(rootfs) == -1)
-			err(EXIT_FAILURE, "rootfs chdir");
-		return;
-	}
-
-	/* prepare sandbox base dir */
-	if (snprintf(base_path, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
-		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
-
-	if (mkdir(base_path, 0755) == -1 && errno != EEXIST)
-		err(EXIT_FAILURE, "mkdir base_path err");
-
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
 		err(EXIT_FAILURE, "mount recursive slave");
 
-	if (mount("", base_path, "tmpfs", MS_NOSUID | MS_NODEV, NULL) < 0)
+	if (rootfs) {
+		if (chroot(rootfs) == -1)
+			err(EXIT_FAILURE, "chroot newroot");
+
+		if (chdir("/") == -1)
+			err(EXIT_FAILURE, "rootfs chdir");
+
+		set_graphics(graphics_enabled, session, display);
+
+		return;
+	}
+
+	/* prepare sandbox base dir */
+	if (snprintf(bpath, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
+		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
+
+	if (mkdir(bpath, 0755) == -1 && errno != EEXIST)
+		err(EXIT_FAILURE, "mkdir bpath err");
+
+	if (mount("", bpath, "tmpfs", MS_NOSUID | MS_NODEV, NULL) < 0)
 		err(EXIT_FAILURE, "mount tmpfs");
 
-	if (chdir(base_path) == -1)
+	if (chdir(bpath) == -1)
 		err(EXIT_FAILURE, "chdir");
 
 	/* prepare pivot_root environment */
@@ -120,7 +155,7 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 		err(EXIT_FAILURE, "oldroot");
 
 	/* there is not a wrapper in glibc for pivot_root */
-	if (syscall(__NR_pivot_root, base_path, "oldroot") == -1)
+	if (syscall(__NR_pivot_root, bpath, "oldroot") == -1)
 		err(EXIT_FAILURE, "pivot_root");
 
 	if (chdir("/") == -1)
@@ -156,31 +191,7 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 					dev_opath, dev_npath);
 	}
 
-	/* check for both Xorg or Wayland */
-	if (graphics_enabled) {
-		if (!session)
-			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
-
-		if (!strncmp(session, "x11", 3)) {
-			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
-				err(EXIT_FAILURE, "mkdir X11 failed");
-
-			if (mount("oldroot/tmp/.X11-unix", "newroot/tmp/.X11-unix"
-				, NULL, MS_BIND | MS_REC, NULL) < 0)
-				err(EXIT_FAILURE, "bind mount X11");
-
-		} else if (!strncmp(session, "wayland", 7)) {
-			if (symlink("oldroot/run/user/1000/wayland-0",
-				"newroot/tmp/wayland-0") < 0)
-				err(EXIT_FAILURE, "symlink Wayland");
-
-			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
-				err(EXIT_FAILURE, "setenv failed");
-		}
-
-		if (setenv("DISPLAY", display, 1) < 0)
-			err(EXIT_FAILURE, "set display");
-	}
+	set_graphics(graphics_enabled, session, display);
 
 	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
 				"/usr/local/sbin", 1) < 0)
