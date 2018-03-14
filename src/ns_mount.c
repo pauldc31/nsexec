@@ -118,6 +118,13 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 	if (clearenv())
 		err(EXIT_FAILURE, "clearenv");
 
+	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
+				"/usr/local/sbin", 1) < 0)
+		err(EXIT_FAILURE, "set path");
+
+	if (term && setenv("TERM", term, 1) < 0)
+		err(EXIT_FAILURE, "set term");
+
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
@@ -190,13 +197,6 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 	}
 
 	set_graphics(graphics_enabled, session, display);
-
-	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
-				"/usr/local/sbin", 1) < 0)
-		err(EXIT_FAILURE, "set path");
-
-	if (term && setenv("TERM", term, 1) < 0)
-		err(EXIT_FAILURE, "set term");
 
 	struct mount_setup *ms, dev_symlinks[] = {
 		{"/proc/self/fd", "newroot/dev/fd"},
