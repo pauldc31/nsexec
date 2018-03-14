@@ -184,7 +184,9 @@ bool default_whitelist(void)
 		SCMP_SYS(umask),
 		SCMP_SYS(uname),
 		SCMP_SYS(unlink),
+		SCMP_SYS(unlinkat),
 		SCMP_SYS(unshare), /* firefox */
+		SCMP_SYS(utimensat),
 		SCMP_SYS(vfork),
 		SCMP_SYS(wait4),
 		SCMP_SYS(waitid),
