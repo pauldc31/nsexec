@@ -17,6 +17,24 @@
 
 #include "helper.h"
 
+static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
+{
+	char proc_path[PATH_MAX];
+	if (bpath)
+		sprintf(proc_path, "/%s/proc", bpath);
+	else
+		sprintf(proc_path, "/proc");
+
+	/* if newpid was specified, mount a new proc */
+	if (ns_args->child_args & CLONE_NEWPID) {
+		if (mkdir("proc", 0755) == -1 && errno != EEXIST)
+			err(EXIT_FAILURE, "mkdir /proc");
+
+		if (mount("proc", "/proc", "proc", 0, NULL) < 0)
+			err(EXIT_FAILURE, "mount proc");
+	}
+}
+
 static void set_graphics(bool graphics_enabled, const char *session,
 		const char *display)
 {
@@ -111,7 +129,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
 	/* /oldroot/ + dev/ + urandom*/
 	/* /newroot/ + dev/ + urandom*/
-	char dev_opath[21], dev_npath[21], bpath[PATH_MAX];
+	char dev_opath[21], dev_npath[21], bpath[PATH_MAX] = {0};
 	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
 		"urandom", NULL};
 
@@ -138,6 +156,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 			err(EXIT_FAILURE, "rootfs chdir");
 
 		set_graphics(ns_args->graphics_enabled, session, display);
+		mount_new_proc(ns_args, NULL);
 
 		return;
 	}
@@ -212,14 +231,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 			err(EXIT_FAILURE, "linking %s", ms->mntd);
 	}
 
-	/* if newpid was specified, mount a new proc */
-	if (ns_args->child_args & CLONE_NEWPID) {
-		if (mkdir("newroot/proc", 0755) == -1)
-			err(EXIT_FAILURE, "mkdir /proc");
-
-		if (mount("proc", "newroot/proc", "proc", 0, NULL) < 0)
-			err(EXIT_FAILURE, "mount proc");
-	}
+	mount_new_proc(ns_args, "newroot");
 
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
