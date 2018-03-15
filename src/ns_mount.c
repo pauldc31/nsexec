@@ -83,7 +83,7 @@ void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
 		err(EXIT_FAILURE, "write");
 }
 
-void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
+void setup_mountns(struct NS_ARGS *ns_args)
 {
 	struct mount_setup {
 		char *dirn;
@@ -130,14 +130,14 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
 		err(EXIT_FAILURE, "mount recursive slave");
 
-	if (rootfs) {
-		if (chroot(rootfs) == -1)
+	if (ns_args->rootfs) {
+		if (chroot(ns_args->rootfs) == -1)
 			err(EXIT_FAILURE, "chroot newroot");
 
 		if (chdir("/") == -1)
 			err(EXIT_FAILURE, "rootfs chdir");
 
-		set_graphics(graphics_enabled, session, display);
+		set_graphics(ns_args->graphics_enabled, session, display);
 
 		return;
 	}
@@ -196,7 +196,7 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 					dev_opath, dev_npath);
 	}
 
-	set_graphics(graphics_enabled, session, display);
+	set_graphics(ns_args->graphics_enabled, session, display);
 
 	struct mount_setup *ms, dev_symlinks[] = {
 		{"/proc/self/fd", "newroot/dev/fd"},
@@ -213,7 +213,7 @@ void setup_mountns(int child_args, bool graphics_enabled, char *rootfs)
 	}
 
 	/* if newpid was specified, mount a new proc */
-	if (child_args & CLONE_NEWPID) {
+	if (ns_args->child_args & CLONE_NEWPID) {
 		if (mkdir("newroot/proc", 0755) == -1)
 			err(EXIT_FAILURE, "mkdir /proc");
 

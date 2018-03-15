@@ -66,6 +66,7 @@ bool default_whitelist(void)
 		SCMP_SYS(fchdir),
 		SCMP_SYS(fchmod),
 		SCMP_SYS(fchown),
+		SCMP_SYS(fchownat),
 		SCMP_SYS(fcntl),
 		SCMP_SYS(fcntl64),
 		SCMP_SYS(fdatasync),

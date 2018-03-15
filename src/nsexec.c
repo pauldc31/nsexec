@@ -21,22 +21,10 @@
 #include "lsm.h"
 
 int enable_verbose = 0;
-
 static int wait_fd = -1;
 static uint64_t val = 1;
-/* vethXXXX */
-static char veth_h[9] = {0}, veth_ns[9] = {0};
-static char *rootfs = NULL;
-const char *exec_file = NULL;
-const char *hostname = NULL;
-static bool graphics_enabled = false;
-static char *seccomp_filter = NULL;
-static char *lsm_context = NULL;
-static int ns_user = 0;
-static int ns_group = 0;
-static int child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
-static int pod_pid = -1;
-char **global_argv;
+
+struct NS_ARGS ns_args;
 
 static int child_func(void)
 {
@@ -50,18 +38,18 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(child_args, graphics_enabled, rootfs);
+	setup_mountns(&ns_args);
 
 	/* only configure network is a new netns is created */
-	if (child_args & CLONE_NEWNET)
-		setup_container_network(veth_ns);
+	if (ns_args.child_args & CLONE_NEWNET)
+		setup_container_network(ns_args.veth_ns);
 
-	if (child_args & CLONE_NEWUTS && hostname) {
-		verbose("hostname: %s\n", hostname);
+	if (ns_args.child_args & CLONE_NEWUTS && ns_args.hostname) {
+		verbose("hostname: %s\n", ns_args.hostname);
 
-		if (sethostname(hostname, strlen(hostname)) == -1)
+		if (sethostname(ns_args.hostname, strlen(ns_args.hostname)))
 			err(EXIT_FAILURE, "Unable to set desired hostname");
-		if (setenv("HOSTNAME", hostname, 1) == -1)
+		if (setenv("HOSTNAME", ns_args.hostname, 1) == -1)
 			err(EXIT_FAILURE, "Unable to set HOSTNAME");
 	}
 
@@ -69,14 +57,15 @@ static int child_func(void)
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0) == -1)
 		err(EXIT_FAILURE, "PR_SET_NO_NEW_PRIVS");
 
-	if (!set_context(lsm_context))
+	if (!set_context(ns_args.lsm_context))
 		errx(EXIT_FAILURE, "Could not set the LSM context");
 
 	/* setup filter here, as a normal user, since we have NO_NEW_PRIVS */
-	if (!install_seccomp_filter(seccomp_filter))
+	if (!install_seccomp_filter(ns_args.seccomp_filter))
 		errx(EXIT_FAILURE, "Could not install seccomp filter");
 
-	argv0 = (exec_file) ? exec_file : global_argv[0];
+	argv0 = (ns_args.exec_file) ? ns_args.exec_file
+				: ns_args.global_argv[0];
 	if (!argv0)
 		argv0 = "bash";
 
@@ -84,7 +73,7 @@ static int child_func(void)
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
 	verbose("capabilities: %s\n", cap_to_text(cap, NULL));
 
-	if (execvp(argv0, global_argv) == -1)
+	if (execvp(argv0, ns_args.global_argv) == -1)
 		err(EXIT_FAILURE, "execvp");
 
 	return 0;
@@ -118,6 +107,10 @@ static void usage(const char *argv0)
 static void handle_arguments(int argc, char **argv)
 {
 	int opt;
+
+	memset(&ns_args, 0, sizeof(ns_args));
+	ns_args.child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
+
 	static struct option long_opt[] = {
 		{"exec-file", required_argument, 0, 'e'},
 		{"graphics", no_argument, 0, 'g'},
@@ -145,65 +138,65 @@ static void handle_arguments(int argc, char **argv)
 
 		switch (opt) {
 		case 'a':
-			child_args |= CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWPID
-				| CLONE_NEWUTS;
+			ns_args.child_args |= CLONE_NEWIPC | CLONE_NEWNET
+				| CLONE_NEWPID | CLONE_NEWUTS;
 			break;
 		case 'i':
-			child_args |= CLONE_NEWIPC;
+			ns_args.child_args |= CLONE_NEWIPC;
 			break;
 		case 'n':
-			child_args |= CLONE_NEWNET;
+			ns_args.child_args |= CLONE_NEWNET;
 			break;
 		case 'p':
-			child_args |= CLONE_NEWPID;
+			ns_args.child_args |= CLONE_NEWPID;
 			break;
 		case 'u':
-			child_args |= CLONE_NEWUTS;
+			ns_args.child_args |= CLONE_NEWUTS;
 			break;
 		case 'e':
-			exec_file = optarg;
+			ns_args.exec_file = optarg;
 			break;
 		case 's':
-			hostname = optarg;
+			ns_args.hostname = optarg;
 			break;
 		case 'g':
-			graphics_enabled = true;
+			ns_args.graphics_enabled = true;
 			break;
 		case 'v':
 			enable_verbose = 1;
 			break;
 		case 'k':
-			seccomp_filter = optarg;
+			ns_args.seccomp_filter = optarg;
 			break;
 		case 'x':
 		{
 			char* endptr;
-			ns_user = strtol(optarg, &endptr, 10);
-			if (ns_user < 0 || endptr[0] != 0)
+			ns_args.ns_user = strtol(optarg, &endptr, 10);
+			if (ns_args.ns_user < 0 || endptr[0] != 0)
 				errx(EXIT_FAILURE, "Invalid uid: %s", optarg);
 			break;
 		}
 		case 'X':
 		{
 			char *endptr;
-			ns_group = strtol(optarg, &endptr, 10);
-			if (ns_group < 0 || endptr[0] != 0)
+			ns_args.ns_group = strtol(optarg, &endptr, 10);
+			if (ns_args.ns_group < 0 || endptr[0] != 0)
 				errx(EXIT_FAILURE, "Invalid gid: %s", optarg);
 			break;
 		}
 		case 'P':
 		{
 			char *endptr;
-			pod_pid = strtol(optarg, &endptr, 10);
-			if (ns_group < 0 || endptr[0] != 0)
+			ns_args.pod_pid = strtol(optarg, &endptr, 10);
+			if (ns_args.ns_group < 0 || endptr[0] != 0)
 				errx(EXIT_FAILURE, "Invalid pid: %s", optarg);
 			break;
 		}
 		case 'l':
-			lsm_context = optarg;
+			ns_args.lsm_context = optarg;
 			break;
 		case 'r':
-			rootfs = optarg;
+			ns_args.rootfs = optarg;
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -214,15 +207,15 @@ static void handle_arguments(int argc, char **argv)
 		}
 	}
 
-	if (hostname && !(child_args & CLONE_NEWUTS))
+	if (ns_args.hostname && !(ns_args.child_args & CLONE_NEWUTS))
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
 			       "option");
 
 	/* FIXME: pod is not working yet, nsexec would need a new binary with
 	 * CAP_SYS_ROOT to enter in an existing namespace
 	 **/
-	if (pod_pid != -1 && child_args ^ (SIGCHLD | CLONE_NEWNS |
-				CLONE_NEWUSER))
+	if (ns_args.pod_pid && ns_args.child_args ^ (SIGCHLD | CLONE_NEWNS
+				| CLONE_NEWUSER))
 		errx(EXIT_FAILURE, "--same-pod-of can't be used with unshare "
 					"flags\n");
 }
@@ -240,17 +233,17 @@ int main(int argc, char **argv)
 	handle_arguments(argc, argv);
 
 	/* use the unparsed options in execvp later */
-	global_argv = argv + optind;
+	ns_args.global_argv = argv + optind;
 
 	/* this will make the child process to wait for the parent setup */
 	wait_fd = eventfd(0, EFD_CLOEXEC);
 	if (wait_fd == -1)
 		err(EXIT_FAILURE, "eventfd");
 
-	if (child_args & CLONE_NEWNET)
-		setup_veth_names(veth_h, veth_ns);
+	if (ns_args.child_args & CLONE_NEWNET)
+		setup_veth_names(ns_args.veth_h, ns_args.veth_ns);
 
-	pid = syscall(__NR_clone, child_args, NULL);
+	pid = syscall(__NR_clone, ns_args.child_args, NULL);
 	if (pid == -1)
 		err(EXIT_FAILURE, "clone");
 
@@ -259,11 +252,11 @@ int main(int argc, char **argv)
 		child_func();
 
 	/* parent, set user mapping and the necessary network */
-	set_maps(pid, "uid_map", ns_user, ns_group);
-	set_maps(pid, "gid_map", ns_user, ns_group);
+	set_maps(pid, "uid_map", ns_args.ns_user, ns_args.ns_group);
+	set_maps(pid, "gid_map", ns_args.ns_user, ns_args.ns_group);
 
-	if (child_args & CLONE_NEWNET)
-		create_bridge(pid, veth_h, veth_ns);
+	if (ns_args.child_args & CLONE_NEWNET)
+		create_bridge(pid, ns_args.veth_h, ns_args.veth_ns);
 
 	/* write to eventfd after setting uid maps and network if needed */
 	if (write(wait_fd, &val, sizeof(val)) < 0)
