@@ -17,6 +17,42 @@
 
 #include "helper.h"
 
+/*
+ * Expects a mount with src and dst like below:
+ * 	/tmp/UNIX,/etc/UNIX
+ **/
+void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
+{
+	struct MOUNT_LIST *entry, *iter;
+	char *src, *dst, *saveptr;
+
+	entry = (struct MOUNT_LIST *)malloc(sizeof(struct MOUNT_LIST));
+	entry->mount_type = flag;
+	entry->next = NULL;
+
+	src = strtok_r(str_mount, ",", &saveptr);
+	if (!src)
+		errx(EXIT_FAILURE, "Wrong src bind paths: %s", str_mount);
+
+	dst = strtok_r(NULL, ",", &saveptr);
+	if (!dst)
+		errx(EXIT_FAILURE, "Wrong dst bind paths: %s", str_mount);
+
+	entry->src = src;
+	entry->dst = dst;
+
+	if (!args->mount_list) {
+		args->mount_list = entry;
+		return;
+	}
+
+	/* for now, just iterates over the mount list until the end */
+	iter = args->mount_list;
+	while (iter->next)
+		iter = iter->next;
+	iter->next = entry;
+}
+
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 {
 	char proc_path[PATH_MAX];
@@ -252,4 +288,10 @@ void setup_mountns(struct NS_ARGS *ns_args)
 
 	if (symlink("/dev/pts/ptmx", "/dev/ptmx") == -1)
 		err(EXIT_FAILURE, "symlnk ptmx failed");
+
+	struct MOUNT_LIST *iter = ns_args->mount_list;
+	while (iter) {
+		printf("src: %s, dest: %s, ro: %d\n", iter->src, iter->dst, iter->mount_type);
+		iter = iter->next;
+	}
 }

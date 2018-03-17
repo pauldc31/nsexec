@@ -1,5 +1,17 @@
 #include <stdarg.h>
 
+typedef enum {
+	MOUNT_RO,
+	MOUNT_RW
+} MOUNT_FLAG;
+
+struct MOUNT_LIST {
+	char *src;
+	char *dst;
+	MOUNT_FLAG mount_type;
+	struct MOUNT_LIST *next;
+};
+
 struct NS_ARGS {
 	bool graphics_enabled;
 	int ns_user;
@@ -10,11 +22,12 @@ struct NS_ARGS {
 	char veth_h[9];
 	char veth_ns[9];
 	char *rootfs;
-	const char *exec_file;
-	const char *hostname;
 	char *seccomp_filter;
 	char *lsm_context;
+	char *exec_file;
+	char *hostname;
 	char **global_argv;
+	struct MOUNT_LIST *mount_list;
 };
 
 /* declared by nsexec */

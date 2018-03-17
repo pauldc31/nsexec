@@ -84,7 +84,8 @@ static void usage(const char *argv0)
 	fprintf(stderr, "Usage: %s [OPTIONS] [ARGUMENTS]\n\n", argv0);
 	fprintf(stderr,
 		"OPTIONS:\n"
-		"--exec                 Execute the specified file inside the sandbox\n"
+		"--bind-ro              Execute a bind mount read-only\n"
+		"--exec-file            Execute the specified file inside the sandbox\n"
 		"--graphics             Bind xorg/wayland files into the container\n"
 		"--help                 Print this message\n"
 		"--uid                  Specify an UID to be executed inside the container\n"
@@ -112,6 +113,7 @@ static void handle_arguments(int argc, char **argv)
 	ns_args.child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
 
 	static struct option long_opt[] = {
+		{"bind-ro", required_argument, 0, 'b'},
 		{"exec-file", required_argument, 0, 'e'},
 		{"graphics", no_argument, 0, 'g'},
 		{"gid", required_argument, 0, 'X'},
@@ -132,7 +134,7 @@ static void handle_arguments(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:b:", long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -197,6 +199,9 @@ static void handle_arguments(int argc, char **argv)
 			break;
 		case 'r':
 			ns_args.rootfs = optarg;
+			break;
+		case 'b':
+			handle_mount_opts(&ns_args, optarg, MOUNT_RO);
 			break;
 		case 'h':
 			usage(argv[0]);
