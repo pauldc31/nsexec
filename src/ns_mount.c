@@ -56,17 +56,14 @@ void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 {
 	char proc_path[PATH_MAX];
-	if (bpath)
-		sprintf(proc_path, "/%s/proc", bpath);
-	else
-		sprintf(proc_path, "/proc");
+	sprintf(proc_path, "%s/proc", bpath ? bpath : "");
 
 	/* if newpid was specified, mount a new proc */
 	if (ns_args->child_args & CLONE_NEWPID) {
-		if (mkdir("proc", 0755) == -1 && errno != EEXIST)
+		if (mkdir(proc_path, 0755) == -1 && errno != EEXIST)
 			err(EXIT_FAILURE, "mkdir /proc");
 
-		if (mount("proc", "/proc", "proc", 0, NULL) < 0)
+		if (mount("proc", proc_path, "proc", 0, NULL) < 0)
 			err(EXIT_FAILURE, "mount proc");
 	}
 }
@@ -266,8 +263,6 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		if (ret && errno != EEXIST)
 			err(EXIT_FAILURE, "linking %s", ms->mntd);
 	}
-
-	mount_new_proc(ns_args, "newroot");
 
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
