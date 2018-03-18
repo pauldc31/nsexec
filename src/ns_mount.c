@@ -53,6 +53,29 @@ void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
 	iter->next = entry;
 }
 
+static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
+		char *dst_prefix)
+{
+	struct MOUNT_LIST *iter;
+	char dst[PATH_MAX];
+	char src[PATH_MAX];
+
+	for (iter = ns_args->mount_list; iter; iter = iter->next) {
+		int flags = MS_BIND;
+		if (iter->mount_type == MOUNT_RO)
+			flags |= MS_RDONLY;
+
+		snprintf(dst, PATH_MAX, "%s%s", dst_prefix ? dst_prefix : "",
+				iter->dst);
+		snprintf(src, PATH_MAX, "%s%s", src_prefix ? src_prefix : "",
+				iter->src);
+		/* FIXME: THIS MOUNT STILL LEAVES THE USER TO CHANGE THE SRC
+		 * MOUNT!!! */
+		if (mount(src, dst, NULL, flags, NULL) < 0)
+			err(EXIT_FAILURE, "mount bind %s -> %s", src, dst);
+	}
+}
+
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 {
 	char proc_path[PATH_MAX];
@@ -228,6 +251,8 @@ void setup_mountns(struct NS_ARGS *ns_args)
 				err(EXIT_FAILURE, "mount bind %s\n", mp->mntd);
 	}
 
+	mount_new_proc(ns_args, "/newroot");
+
 	if (mount("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
 		"newinstance,ptmxmode=0666,mode=620") != 0)
 		err(EXIT_FAILURE, "mount devpts failed");
@@ -267,6 +292,8 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
 		err(EXIT_FAILURE, "remount oldroot");
+
+	execute_additional_mounts(ns_args, "/oldroot", "/newroot");
 
 	/* apply lazy umount on oldroot */
 	if (umount2("oldroot", MNT_DETACH) < 0)
