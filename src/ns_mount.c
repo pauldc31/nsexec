@@ -62,17 +62,20 @@ static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
 
 	for (iter = ns_args->mount_list; iter; iter = iter->next) {
 		int flags = MS_BIND;
-		if (iter->mount_type == MOUNT_RO)
-			flags |= MS_RDONLY;
-
 		snprintf(dst, PATH_MAX, "%s%s", dst_prefix ? dst_prefix : "",
 				iter->dst);
 		snprintf(src, PATH_MAX, "%s%s", src_prefix ? src_prefix : "",
 				iter->src);
-		/* FIXME: THIS MOUNT STILL LEAVES THE USER TO CHANGE THE SRC
-		 * MOUNT!!! */
+
 		if (mount(src, dst, NULL, flags, NULL) < 0)
 			err(EXIT_FAILURE, "mount bind %s -> %s", src, dst);
+
+		/* WORKAROUND: https://bugzilla.redhat.com/show_bug.cgi?id=584484 */
+		if (iter->mount_type == MOUNT_RO) {
+			flags |= MS_REMOUNT | MS_RDONLY;
+			if (mount(src, dst, NULL, flags, NULL) < 0)
+				err(EXIT_FAILURE, "mount bind %s -> %s", src, dst);
+		}
 	}
 }
 
