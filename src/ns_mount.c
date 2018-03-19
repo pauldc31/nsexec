@@ -176,6 +176,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		{"newroot/etc/","oldroot/etc/"},
 		{"newroot/lib", "oldroot/lib"},
 		{"newroot/lib64", "oldroot/lib64"},
+		{"newroot/mnt", NULL},
 		{"newroot/tmp", NULL},
 		{"newroot/usr", "oldroot/usr"},
 		{NULL, NULL}
@@ -254,6 +255,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 				err(EXIT_FAILURE, "mount bind %s\n", mp->mntd);
 	}
 
+	execute_additional_mounts(ns_args, "/oldroot", "/newroot");
 	mount_new_proc(ns_args, "/newroot");
 
 	if (mount("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
@@ -295,8 +297,6 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	/* remount oldroot no not propagate to parent namespace */
 	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
 		err(EXIT_FAILURE, "remount oldroot");
-
-	execute_additional_mounts(ns_args, "/oldroot", "/newroot");
 
 	/* apply lazy umount on oldroot */
 	if (umount2("oldroot", MNT_DETACH) < 0)
