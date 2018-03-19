@@ -17,6 +17,13 @@
 
 #include "helper.h"
 
+/* simplify error handling and boilerplate mount code */
+static void mount_help(char *src, char *dst, char *typ, long flags, char *data)
+{
+	if (mount(src, dst, typ, flags, data) < 0)
+		err(EXIT_FAILURE, "mount %s -> %s, type: %s", src, dst, typ);
+}
+
 /*
  * Expects a mount with src and dst like below:
  * 	/tmp/UNIX,/etc/UNIX
@@ -67,14 +74,12 @@ static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
 		snprintf(src, PATH_MAX, "%s%s", src_prefix ? src_prefix : "",
 				iter->src);
 
-		if (mount(src, dst, NULL, flags, NULL) < 0)
-			err(EXIT_FAILURE, "mount bind %s -> %s", src, dst);
+		mount_help(src, dst, NULL, flags, NULL);
 
 		/* WORKAROUND: https://bugzilla.redhat.com/show_bug.cgi?id=584484 */
 		if (iter->mount_type == MOUNT_RO) {
 			flags |= MS_REMOUNT | MS_RDONLY;
-			if (mount(src, dst, NULL, flags, NULL) < 0)
-				err(EXIT_FAILURE, "mount bind %s -> %s", src, dst);
+			mount_help(src, dst, NULL, flags, NULL);
 		}
 	}
 }
@@ -89,8 +94,7 @@ static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 		if (mkdir(proc_path, 0755) == -1 && errno != EEXIST)
 			err(EXIT_FAILURE, "mkdir /proc");
 
-		if (mount("proc", proc_path, "proc", 0, NULL) < 0)
-			err(EXIT_FAILURE, "mount proc");
+		mount_help("proc", proc_path, "proc", 0, NULL);
 	}
 }
 
@@ -106,9 +110,9 @@ static void set_graphics(bool graphics_enabled, const char *session,
 			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
 				err(EXIT_FAILURE, "mkdir X11 failed");
 
-			if (mount("oldroot/tmp/.X11-unix", "newroot/tmp/.X11-unix"
-				, NULL, MS_BIND | MS_REC, NULL) < 0)
-				err(EXIT_FAILURE, "bind mount X11");
+			mount_help("oldroot/tmp/.X11-unix",
+				"newroot/tmp/.X11-unix" , NULL,
+				MS_BIND | MS_REC, NULL);
 		} else if (!strncmp(session, "wayland", 7)) {
 			if (symlink("oldroot/run/user/1000/wayland-0",
 				"newroot/tmp/wayland-0") < 0)
@@ -205,8 +209,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 
 	/* set / as slave, so changes from here won't be propagated to parent
 	 * namespace */
-	if (mount(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
-		err(EXIT_FAILURE, "mount recursive slave");
+	mount_help(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL);
 
 	if (ns_args->rootfs) {
 		if (chroot(ns_args->rootfs) == -1)
@@ -228,8 +231,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	if (mkdir(bpath, 0755) == -1 && errno != EEXIST)
 		err(EXIT_FAILURE, "mkdir bpath err");
 
-	if (mount("", bpath, "tmpfs", MS_NOSUID | MS_NODEV, NULL) < 0)
-		err(EXIT_FAILURE, "mount tmpfs");
+	mount_help("", bpath, "tmpfs", MS_NOSUID | MS_NODEV, NULL);
 
 	if (chdir(bpath) == -1)
 		err(EXIT_FAILURE, "chdir");
@@ -250,17 +252,15 @@ void setup_mountns(struct NS_ARGS *ns_args)
 			err(EXIT_FAILURE, "mkdir %s\n", mp->dirn);
 
 		if (mp->mntd)
-			if (mount(mp->mntd, mp->dirn, NULL, MS_BIND | MS_RDONLY,
-						NULL) < 0)
-				err(EXIT_FAILURE, "mount bind %s\n", mp->mntd);
+			mount_help(mp->mntd, mp->dirn, NULL,
+					MS_BIND | MS_RDONLY, NULL);
 	}
 
 	execute_additional_mounts(ns_args, "/oldroot", "/newroot");
 	mount_new_proc(ns_args, "/newroot");
 
-	if (mount("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
-		"newinstance,ptmxmode=0666,mode=620") != 0)
-		err(EXIT_FAILURE, "mount devpts failed");
+	mount_help("devpts", "newroot/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
+		"newinstance,ptmxmode=0666,mode=620");
 
 	/* bind-mount /dev devices from hosts, following what bubblewrap does
 	 * when using user-namespaces
@@ -273,9 +273,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		if (creat(dev_npath, 0666) == -1)
 			err(EXIT_FAILURE, "creat failed for %s", dev_npath);
 
-		if (mount(dev_opath, dev_npath, NULL, MS_BIND, NULL) < 0)
-			err(EXIT_FAILURE, "failed to mount %s into %s",
-					dev_opath, dev_npath);
+		mount_help(dev_opath, dev_npath, NULL, MS_BIND, NULL);
 	}
 
 	set_graphics(ns_args->graphics_enabled, session, display);
@@ -295,8 +293,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	}
 
 	/* remount oldroot no not propagate to parent namespace */
-	if (mount("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
-		err(EXIT_FAILURE, "remount oldroot");
+	mount_help("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL);
 
 	/* apply lazy umount on oldroot */
 	if (umount2("oldroot", MNT_DETACH) < 0)
@@ -313,10 +310,4 @@ void setup_mountns(struct NS_ARGS *ns_args)
 
 	if (symlink("/dev/pts/ptmx", "/dev/ptmx") == -1)
 		err(EXIT_FAILURE, "symlnk ptmx failed");
-
-	struct MOUNT_LIST *iter = ns_args->mount_list;
-	while (iter) {
-		printf("src: %s, dest: %s, ro: %d\n", iter->src, iter->dst, iter->mount_type);
-		iter = iter->next;
-	}
 }
