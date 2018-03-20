@@ -24,11 +24,19 @@ static void mount_help(char *src, char *dst, char *typ, long flags, char *data)
 		err(EXIT_FAILURE, "mount %s -> %s, type: %s", src, dst, typ);
 }
 
+/* same as above, but for links */
+static void symlink_help(char *src, char *dst)
+{
+	int ret = symlink(src, dst);
+	if (ret && errno != EEXIST)
+		err(EXIT_FAILURE, "linking %s -> %s", src, dst);
+}
+
 /*
  * Expects a mount with src and dst like below:
  * 	/tmp/UNIX,/etc/UNIX
  **/
-void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
+void handle_mount_opts(struct MOUNT_LIST **ml, char *str_mount, MOUNT_FLAG flag)
 {
 	struct MOUNT_LIST *entry, *iter;
 	char *src, *dst, *saveptr;
@@ -48,13 +56,13 @@ void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
 	entry->src = src;
 	entry->dst = dst;
 
-	if (!args->mount_list) {
-		args->mount_list = entry;
+	if (!*ml) {
+		*ml = entry;
 		return;
 	}
 
 	/* for now, just iterates over the mount list until the end */
-	iter = args->mount_list;
+	iter = *ml;
 	while (iter->next)
 		iter = iter->next;
 	iter->next = entry;
@@ -110,6 +118,14 @@ static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
 	}
 }
 
+static void execute_additional_links(struct NS_ARGS *ns_args)
+{
+	struct MOUNT_LIST *iter;
+
+	for (iter = ns_args->link_list; iter; iter = iter->next)
+		symlink_help(iter->src, iter->dst);
+}
+
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 {
 	char proc_path[PATH_MAX];
@@ -135,9 +151,8 @@ static void set_graphics(struct NS_ARGS *ns_args)
 				"newroot/tmp/.X11-unix" , NULL,
 				MS_BIND | MS_REC, NULL);
 		} else if (!strncmp(ns_args->session, "wayland", 7)) {
-			if (symlink("oldroot/run/user/1000/wayland-0",
-				"newroot/tmp/wayland-0") < 0)
-				err(EXIT_FAILURE, "symlink Wayland");
+			symlink_help("oldroot/run/user/1000/wayland-0",
+				"newroot/tmp/wayland-0");
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
 		}
@@ -302,11 +317,8 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		{NULL, NULL}
 	};
 
-	for (ms = dev_symlinks; ms->dirn; ms++) {
-		int ret = symlink(ms->dirn, ms->mntd);
-		if (ret && errno != EEXIST)
-			err(EXIT_FAILURE, "linking %s", ms->mntd);
-	}
+	for (ms = dev_symlinks; ms->dirn; ms++)
+		 symlink_help(ms->dirn, ms->mntd);
 
 	/* remount oldroot no not propagate to parent namespace */
 	mount_help("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL);
@@ -324,6 +336,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	if (chdir("/") == -1)
 		err(EXIT_FAILURE, "chdir /");
 
-	if (symlink("/dev/pts/ptmx", "/dev/ptmx") == -1)
-		err(EXIT_FAILURE, "symlnk ptmx failed");
+	symlink_help("/dev/pts/ptmx", "/dev/ptmx");
+
+	execute_additional_links(ns_args);
 }

@@ -125,6 +125,7 @@ static void handle_arguments(int argc, char **argv)
 		{"rootfs", required_argument, 0, 'r'},
 		{"same-pod-of", required_argument, 0, 'P'},
 		{"seccomp-keep", required_argument, 0, 'k'},
+		{"symlink", required_argument, 0, 'S'},
 		{"unshare-all", no_argument, 0, 'a'},
 		{"unshare-ipc", no_argument, 0, 'i'},
 		{"unshare-net", no_argument, 0, 'n'},
@@ -136,7 +137,8 @@ static void handle_arguments(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:b:", long_opt, NULL);
+		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:b:B:S:",
+				long_opt, NULL);
 		if (opt == -1)
 			break;
 
@@ -205,10 +207,15 @@ static void handle_arguments(int argc, char **argv)
 			ns_args.rootfs = optarg;
 			break;
 		case 'b':
-			handle_mount_opts(&ns_args, optarg, MOUNT_RW);
+			handle_mount_opts(&(ns_args.mount_list), optarg,
+					MOUNT_RW);
 			break;
 		case 'B':
-			handle_mount_opts(&ns_args, optarg, MOUNT_RO);
+			handle_mount_opts(&ns_args.mount_list, optarg,
+					MOUNT_RO);
+			break;
+		case 'S':
+			handle_mount_opts(&ns_args.link_list, optarg, SYMLINK);
 			break;
 		case 'h':
 			usage(argv[0]);

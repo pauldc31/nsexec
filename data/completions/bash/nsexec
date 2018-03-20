@@ -21,6 +21,7 @@ _nsexec() {
 		--rootfs
 		--bind
 		--bind-ro
+		--symlink
 	"
 
 	if [[ "$cur" == -* ]]; then

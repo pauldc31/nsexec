@@ -2,7 +2,8 @@
 
 typedef enum {
 	MOUNT_RO,
-	MOUNT_RW
+	MOUNT_RW,
+	SYMLINK
 } MOUNT_FLAG;
 
 struct MOUNT_LIST {
@@ -31,6 +32,7 @@ struct NS_ARGS {
 	char *display;
 	char **global_argv;
 	struct MOUNT_LIST *mount_list;
+	struct MOUNT_LIST *link_list;
 };
 
 /* declared by nsexec */
