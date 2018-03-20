@@ -60,6 +60,31 @@ void handle_mount_opts(struct NS_ARGS *args, char *str_mount, MOUNT_FLAG flag)
 	iter->next = entry;
 }
 
+/* grab each part of the comming path and create the directories as needed
+ * grabbed from LXC
+ **/
+static void mkdir_p(const char *dir, mode_t mode)
+{
+	const char *tmp = dir;
+	const char *orig = dir;
+	char *makeme;
+
+	do {
+		dir = tmp + strspn(tmp, "/");
+		/* tmp holds the next iteration string */
+		tmp = dir + strcspn(dir, "/");
+		makeme = strndup(orig, dir - orig);
+		if (*makeme) {
+			if (mkdir(makeme, mode) && errno != EEXIST) {
+				free(makeme);
+				err(EXIT_FAILURE, "Failed to create directory "
+						"'%s'", makeme);
+			}
+		}
+		free(makeme);
+	} while(tmp != dir);
+}
+
 static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
 		char *dst_prefix)
 {
@@ -74,6 +99,7 @@ static void execute_additional_mounts(struct NS_ARGS *ns_args, char *src_prefix,
 		snprintf(src, PATH_MAX, "%s%s", src_prefix ? src_prefix : "",
 				iter->src);
 
+		mkdir_p(dst, 0755);
 		mount_help(src, dst, NULL, flags, NULL);
 
 		/* WORKAROUND: https://bugzilla.redhat.com/show_bug.cgi?id=584484 */
@@ -91,9 +117,7 @@ static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 
 	/* if newpid was specified, mount a new proc */
 	if (ns_args->child_args & CLONE_NEWPID) {
-		if (mkdir(proc_path, 0755) == -1 && errno != EEXIST)
-			err(EXIT_FAILURE, "mkdir /proc");
-
+		mkdir_p(proc_path, 0755);
 		mount_help("proc", proc_path, "proc", 0, NULL);
 	}
 }
@@ -106,9 +130,7 @@ static void set_graphics(struct NS_ARGS *ns_args)
 			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
 
 		if (!strncmp(ns_args->session, "x11", 3)) {
-			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
-				err(EXIT_FAILURE, "mkdir X11 failed");
-
+			mkdir_p("newroot/tmp/.X11-unix", 0755);
 			mount_help("oldroot/tmp/.X11-unix",
 				"newroot/tmp/.X11-unix" , NULL,
 				MS_BIND | MS_REC, NULL);
@@ -226,8 +248,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	if (snprintf(bpath, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
 		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
 
-	if (mkdir(bpath, 0755) == -1 && errno != EEXIST)
-		err(EXIT_FAILURE, "mkdir bpath err");
+	mkdir_p(bpath, 0755);
 
 	mount_help("", bpath, "tmpfs", MS_NOSUID | MS_NODEV, NULL);
 
@@ -235,8 +256,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		err(EXIT_FAILURE, "chdir");
 
 	/* prepare pivot_root environment */
-	if (mkdir("oldroot", 0755) == -1)
-		err(EXIT_FAILURE, "oldroot");
+	mkdir_p("oldroot", 0755);
 
 	/* there is not a wrapper in glibc for pivot_root */
 	if (syscall(__NR_pivot_root, bpath, "oldroot") == -1)
@@ -246,9 +266,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		err(EXIT_FAILURE, "chdir to new root");
 
 	for (mp = mount_list; mp->dirn; mp++) {
-		if (mkdir(mp->dirn, 0755) == -1)
-			err(EXIT_FAILURE, "mkdir %s\n", mp->dirn);
-
+		mkdir_p(mp->dirn, 0755);
 		if (mp->mntd)
 			mount_help(mp->mntd, mp->dirn, NULL,
 					MS_BIND | MS_RDONLY, NULL);
