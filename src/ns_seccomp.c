@@ -65,6 +65,7 @@ bool default_whitelist(void)
 		SCMP_SYS(fallocate), /* firefox */
 		SCMP_SYS(fchdir),
 		SCMP_SYS(fchmod),
+		SCMP_SYS(fchmodat),
 		SCMP_SYS(fchown),
 		SCMP_SYS(fchownat),
 		SCMP_SYS(fcntl),
@@ -113,6 +114,7 @@ bool default_whitelist(void)
 		SCMP_SYS(madvise), /* XXX there are CVE's related to madvise */
 		SCMP_SYS(memfd_create),
 		SCMP_SYS(mkdir),
+		SCMP_SYS(mkdirat),
 		SCMP_SYS(mmap),
 		SCMP_SYS(mprotect),
 		SCMP_SYS(mremap),
@@ -141,12 +143,16 @@ bool default_whitelist(void)
 		SCMP_SYS(read),
 		SCMP_SYS(readahead),
 		SCMP_SYS(readlink),
+		SCMP_SYS(readlinkat),
 		SCMP_SYS(recvfrom),
 		SCMP_SYS(recvmsg),
 		SCMP_SYS(rename),
+		SCMP_SYS(renameat),
+		SCMP_SYS(renameat2),
 		SCMP_SYS(rmdir),
 		SCMP_SYS(restart_syscall),
 		SCMP_SYS(rt_sigaction),
+		SCMP_SYS(rt_sigpending),
 		SCMP_SYS(rt_sigprocmask),
 		SCMP_SYS(rt_sigqueueinfo),
 		SCMP_SYS(rt_sigreturn),
@@ -190,6 +196,8 @@ bool default_whitelist(void)
 		SCMP_SYS(syscall),
 		SCMP_SYS(sysinfo),
 		SCMP_SYS(symlink), /* firefox */
+		SCMP_SYS(symlinkat),
+		SCMP_SYS(tkill),
 		SCMP_SYS(tgkill), /* firefox */
 		SCMP_SYS(umask),
 		SCMP_SYS(uname),
