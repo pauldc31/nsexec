@@ -30,6 +30,7 @@ struct NS_ARGS {
 	char *term;
 	char *session;
 	char *display;
+	char *chdir;
 	char **global_argv;
 	struct MOUNT_LIST *mount_list;
 	struct MOUNT_LIST *link_list;

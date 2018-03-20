@@ -247,6 +247,8 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	mount_help(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL);
 
 	if (ns_args->rootfs) {
+		execute_additional_mounts(ns_args, NULL, NULL);
+
 		if (chroot(ns_args->rootfs) == -1)
 			err(EXIT_FAILURE, "chroot newroot");
 
@@ -255,6 +257,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 
 		set_graphics(ns_args);
 		mount_new_proc(ns_args, NULL);
+		execute_additional_links(ns_args);
 
 		return;
 	}
@@ -339,4 +342,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	symlink_help("/dev/pts/ptmx", "/dev/ptmx");
 
 	execute_additional_links(ns_args);
+
+	if (ns_args->chdir && chdir(ns_args->chdir) == -1)
+		err(EXIT_FAILURE, "chdir to %s", ns_args->chdir);
 }

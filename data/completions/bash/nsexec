@@ -22,6 +22,7 @@ _nsexec() {
 		--bind
 		--bind-ro
 		--symlink
+		--chdir
 	"
 
 	if [[ "$cur" == -* ]]; then

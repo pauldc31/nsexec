@@ -84,6 +84,7 @@ static void usage(const char *argv0)
 	fprintf(stderr, "Usage: %s [OPTIONS] [ARGUMENTS]\n\n", argv0);
 	fprintf(stderr,
 		"OPTIONS:\n"
+		"--chdir                Change directory inside the container\n"
 		"--bind                 Execute a bind mount\n"
 		"--bind-ro              Execute a bind mount read-only\n"
 		"--exec-file            Execute the specified file inside the sandbox\n"
@@ -114,6 +115,7 @@ static void handle_arguments(int argc, char **argv)
 	ns_args.child_args = SIGCHLD | CLONE_NEWNS | CLONE_NEWUSER;
 
 	static struct option long_opt[] = {
+		{"chdir", required_argument, 0, 'c'},
 		{"bind", required_argument, 0, 'b'},
 		{"bind-ro", required_argument, 0, 'B'},
 		{"exec-file", required_argument, 0, 'e'},
@@ -137,7 +139,7 @@ static void handle_arguments(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:b:B:S:",
+		opt = getopt_long(argc, argv, "eshainpuUvk:l:r:b:B:S:c:",
 				long_opt, NULL);
 		if (opt == -1)
 			break;
@@ -216,6 +218,9 @@ static void handle_arguments(int argc, char **argv)
 			break;
 		case 'S':
 			handle_mount_opts(&ns_args.link_list, optarg, SYMLINK);
+			break;
+		case 'c':
+			ns_args.chdir = optarg;
 			break;
 		case 'h':
 			usage(argv[0]);
