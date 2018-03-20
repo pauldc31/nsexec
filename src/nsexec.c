@@ -165,6 +165,8 @@ static void handle_arguments(int argc, char **argv)
 			break;
 		case 'g':
 			ns_args.graphics_enabled = true;
+			ns_args.session = getenv("XDG_SESSION_TYPE");
+			ns_args.display = getenv("DISPLAY");
 			break;
 		case 'v':
 			enable_verbose = 1;
@@ -217,6 +219,8 @@ static void handle_arguments(int argc, char **argv)
 		}
 	}
 
+	ns_args.term = getenv("TERM");
+
 	if (ns_args.hostname && !(ns_args.child_args & CLONE_NEWUTS))
 		errx(EXIT_FAILURE, "--hostname is valid only with --unshare-uts"
 			       "option");
@@ -262,8 +266,8 @@ int main(int argc, char **argv)
 		child_func();
 
 	/* parent, set user mapping and the necessary network */
-	set_maps(pid, "uid_map", ns_args.ns_user, ns_args.ns_group);
-	set_maps(pid, "gid_map", ns_args.ns_user, ns_args.ns_group);
+	set_maps(pid, "uid_map", &ns_args);
+	set_maps(pid, "gid_map", &ns_args);
 
 	if (ns_args.child_args & CLONE_NEWNET)
 		create_bridge(pid, ns_args.veth_h, ns_args.veth_ns);

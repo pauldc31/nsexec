@@ -98,38 +98,40 @@ static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 	}
 }
 
-static void set_graphics(bool graphics_enabled, const char *session,
-		const char *display)
+static void set_graphics(struct NS_ARGS *ns_args)
 {
 	/* check for both Xorg or Wayland */
-	if (graphics_enabled) {
-		if (!session)
+	if (ns_args->graphics_enabled) {
+		if (!ns_args->session)
 			errx(EXIT_FAILURE, "XDG_SESSION_TYPE not defined");
 
-		if (!strncmp(session, "x11", 3)) {
+		if (!strncmp(ns_args->session, "x11", 3)) {
 			if (mkdir("newroot/tmp/.X11-unix", 0755) == -1)
 				err(EXIT_FAILURE, "mkdir X11 failed");
 
 			mount_help("oldroot/tmp/.X11-unix",
 				"newroot/tmp/.X11-unix" , NULL,
 				MS_BIND | MS_REC, NULL);
-		} else if (!strncmp(session, "wayland", 7)) {
+		} else if (!strncmp(ns_args->session, "wayland", 7)) {
 			if (symlink("oldroot/run/user/1000/wayland-0",
 				"newroot/tmp/wayland-0") < 0)
 				err(EXIT_FAILURE, "symlink Wayland");
 			if (setenv("XDG_RUNTIME_DIR", "/tmp", 1) < 0)
 				err(EXIT_FAILURE, "setenv failed");
 		}
-		if (setenv("DISPLAY", display, 1) < 0)
+		if (setenv("DISPLAY", ns_args->display, 1) < 0)
 			err(EXIT_FAILURE, "set display");
 	}
 }
 
 /* map user 1000 to user 0 (root) inside namespace */
-void set_maps(pid_t pid, const char *map, int ns_user, int ns_group) {
+void set_maps(pid_t pid, const char *map, struct NS_ARGS *ns_args)
+{
 	int fd, data_len;
 	char path[PATH_MAX], data[30];
 	bool map_user = !strncmp(map, "uid_map", 7);
+	int ns_user = ns_args->ns_user;
+	int ns_group = ns_args->ns_group;
 
 	if (sprintf(data, "%d %d 1\n", map_user ? ns_user : ns_group
 				, map_user ? getuid() : getgid()) < 0)
@@ -186,10 +188,6 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		{NULL, NULL}
 	};
 
-	const char *session = getenv("XDG_SESSION_TYPE");
-	const char *display = getenv("DISPLAY");
-	const char *term = getenv("TERM");
-
 	/* 9         + 4    + 7 (bigger dev string) + 21 (with null) */
 	/* /oldroot/ + dev/ + urandom*/
 	/* /newroot/ + dev/ + urandom*/
@@ -204,7 +202,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 				"/usr/local/sbin", 1) < 0)
 		err(EXIT_FAILURE, "set path");
 
-	if (term && setenv("TERM", term, 1) < 0)
+	if (ns_args->term && setenv("TERM", ns_args->term, 1) < 0)
 		err(EXIT_FAILURE, "set term");
 
 	/* set / as slave, so changes from here won't be propagated to parent
@@ -218,7 +216,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		if (chdir("/") == -1)
 			err(EXIT_FAILURE, "rootfs chdir");
 
-		set_graphics(ns_args->graphics_enabled, session, display);
+		set_graphics(ns_args);
 		mount_new_proc(ns_args, NULL);
 
 		return;
@@ -276,7 +274,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		mount_help(dev_opath, dev_npath, NULL, MS_BIND, NULL);
 	}
 
-	set_graphics(ns_args->graphics_enabled, session, display);
+	set_graphics(ns_args);
 
 	struct mount_setup *ms, dev_symlinks[] = {
 		{"/proc/self/fd", "newroot/dev/fd"},

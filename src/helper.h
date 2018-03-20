@@ -26,6 +26,9 @@ struct NS_ARGS {
 	char *lsm_context;
 	char *exec_file;
 	char *hostname;
+	char *term;
+	char *session;
+	char *display;
 	char **global_argv;
 	struct MOUNT_LIST *mount_list;
 };
