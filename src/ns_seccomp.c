@@ -101,6 +101,7 @@ bool default_whitelist(void)
 		SCMP_SYS(getresuid),
 		SCMP_SYS(getrlimit),
 		SCMP_SYS(getrusage),
+		SCMP_SYS(getsid),
 		SCMP_SYS(getsockname),
 		SCMP_SYS(getsockopt),
 		SCMP_SYS(gettid),
