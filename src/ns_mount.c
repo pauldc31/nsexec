@@ -203,6 +203,20 @@ void set_maps(pid_t pid, const char *map, struct NS_ARGS *ns_args)
 		err(EXIT_FAILURE, "write");
 }
 
+/* map user 1000 to user 0 (root) inside namespace */
+void set_newuid_maps(pid_t pid)
+{
+	char cmd[1024];
+
+	sprintf(cmd, "newuidmap %d 0 1000 65536", pid);
+	if (system(cmd) == -1)
+		err(EXIT_FAILURE, "newuidmap");
+
+	sprintf(cmd, "newgidmap %d 0 1000 65536", pid);
+	if (system(cmd) == -1)
+		err(EXIT_FAILURE, "newgidmap");
+}
+
 void setup_mountns(struct NS_ARGS *ns_args)
 {
 	struct mount_setup {
