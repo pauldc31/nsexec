@@ -2,6 +2,7 @@
 
 #include <err.h>
 #include <getopt.h>
+#include <grp.h>
 #include <sched.h>
 #include <stdbool.h> /* true, false, bool */
 #include <stdio.h>
@@ -68,6 +69,9 @@ static int child_func(void)
 				: ns_args.global_argv[0];
 	if (!argv0)
 		argv0 = "bash";
+
+	/* remove supplementay groups */
+	setgroups(0, 0);
 
 	verbose("PID: %d, PPID: %d\n", getpid(), getppid());
 	verbose("eUID: %d, eGID: %d\n", geteuid(), getegid());
@@ -283,6 +287,8 @@ int main(int argc, char **argv)
 
 	if (ns_args.child_args & CLONE_NEWNET)
 		create_bridge(pid, ns_args.veth_h, ns_args.veth_ns);
+
+	verbose("Child pid: %d\n", pid);
 
 	/* write to eventfd after setting uid maps and network if needed */
 	if (write(wait_fd, &val, sizeof(val)) < 0)
