@@ -271,6 +271,8 @@ void setup_mountns(struct NS_ARGS *ns_args)
 
 		set_graphics(ns_args);
 		mount_new_proc(ns_args, NULL);
+		mount_help("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
+				"newinstance,ptmxmode=0666,mode=620");
 		execute_additional_links(ns_args);
 
 		return;
