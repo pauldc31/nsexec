@@ -45,6 +45,7 @@ bool default_whitelist(void)
 		SCMP_SYS(dup),
 		SCMP_SYS(dup2),
 		SCMP_SYS(dup3),
+		SCMP_SYS(epoll_create),
 		SCMP_SYS(epoll_create1),
 		SCMP_SYS(epoll_ctl),
 		SCMP_SYS(epoll_wait),
@@ -148,6 +149,7 @@ bool default_whitelist(void)
 		SCMP_SYS(readahead),
 		SCMP_SYS(readlink),
 		SCMP_SYS(readlinkat),
+		SCMP_SYS(readv),
 		SCMP_SYS(recvfrom),
 		SCMP_SYS(recvmsg),
 		SCMP_SYS(rename),
@@ -201,6 +203,7 @@ bool default_whitelist(void)
 		SCMP_SYS(sysinfo),
 		SCMP_SYS(symlink), /* firefox */
 		SCMP_SYS(symlinkat),
+		SCMP_SYS(sync_file_range),
 		SCMP_SYS(tkill),
 		SCMP_SYS(tgkill), /* firefox */
 		SCMP_SYS(umask),
