@@ -318,7 +318,6 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	/* bind-mount /dev devices from hosts, following what bubblewrap does
 	 * when using user-namespaces
 	 * */
-	/* FIXME: This can be umounted by container, how to fix it?? */
 	for (devp = sym_devs; *devp; devp++) {
 		sprintf(dev_opath, "oldroot/dev/%s", *devp);
 		sprintf(dev_npath, "newroot/dev/%s", *devp);
