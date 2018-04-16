@@ -129,10 +129,10 @@ static void execute_additional_links(struct NS_ARGS *ns_args)
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
 {
 	char proc_path[PATH_MAX];
-	sprintf(proc_path, "%s/proc", bpath ? bpath : "");
 
 	/* if newpid was specified, mount a new proc */
 	if (ns_args->child_args & CLONE_NEWPID) {
+		sprintf(proc_path, "%s/proc", bpath ? bpath : "");
 		mkdir_p(proc_path, 0755);
 		mount_help("proc", proc_path, "proc", 0, NULL);
 	}
@@ -217,6 +217,43 @@ void set_newuid_maps(pid_t pid)
 		err(EXIT_FAILURE, "newgidmap");
 }
 
+void basic_setup(struct NS_ARGS *ns_args)
+{
+	if (clearenv())
+		err(EXIT_FAILURE, "clearenv");
+
+	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
+				"/usr/local/sbin", 1) < 0)
+		err(EXIT_FAILURE, "set path");
+
+	if (ns_args->term && setenv("TERM", ns_args->term, 1) < 0)
+		err(EXIT_FAILURE, "set term");
+
+	/* set / as slave, so changes from here won't be propagated to parent
+	 * namespace */
+	mount_help(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL);
+}
+
+void setup_rootfs(struct NS_ARGS *ns_args)
+{
+	execute_additional_mounts(ns_args, NULL, NULL);
+
+	if (chroot(ns_args->rootfs) == -1)
+		err(EXIT_FAILURE, "chroot newroot");
+
+	if (chdir("/") == -1)
+		err(EXIT_FAILURE, "rootfs chdir");
+
+	set_graphics(ns_args);
+	mount_new_proc(ns_args, NULL);
+
+	mkdir_p("/dev/pts", 0755);
+	mount_help("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
+			"newinstance,ptmxmode=0666,mode=620");
+
+	execute_additional_links(ns_args);
+}
+
 void setup_mountns(struct NS_ARGS *ns_args)
 {
 	struct mount_setup {
@@ -227,7 +264,6 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	struct mount_setup *mp, mount_list[] = {
 		{"newroot", NULL},
 		{"newroot/bin", "oldroot/bin"},
-		{"newroot/dev", NULL},
 		{"newroot/dev/pts", NULL},
 		{"newroot/dev/shm", NULL},
 		{"newroot/etc/","oldroot/etc/"},
@@ -246,44 +282,11 @@ void setup_mountns(struct NS_ARGS *ns_args)
 	const char **devp, *sym_devs[] = {"full", "null", "random", "tty",
 		"urandom", NULL};
 
-	if (clearenv())
-		err(EXIT_FAILURE, "clearenv");
-
-	if (setenv("PATH", "/usr/bin:/bin/:/usr/sbin:/sbin:/usr/local/bin:"
-				"/usr/local/sbin", 1) < 0)
-		err(EXIT_FAILURE, "set path");
-
-	if (ns_args->term && setenv("TERM", ns_args->term, 1) < 0)
-		err(EXIT_FAILURE, "set term");
-
-	/* set / as slave, so changes from here won't be propagated to parent
-	 * namespace */
-	mount_help(NULL, "/", NULL, MS_SLAVE | MS_REC, NULL);
-
-	if (ns_args->rootfs) {
-		execute_additional_mounts(ns_args, NULL, NULL);
-
-		if (chroot(ns_args->rootfs) == -1)
-			err(EXIT_FAILURE, "chroot newroot");
-
-		if (chdir("/") == -1)
-			err(EXIT_FAILURE, "rootfs chdir");
-
-		set_graphics(ns_args);
-		mount_new_proc(ns_args, NULL);
-		mount_help("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC,
-				"newinstance,ptmxmode=0666,mode=620");
-		execute_additional_links(ns_args);
-
-		return;
-	}
-
 	/* prepare sandbox base dir */
 	if (snprintf(bpath, PATH_MAX, "/tmp/.ns_exec-%d", getuid()) < 0)
 		err(EXIT_FAILURE, "prepare_tmpfs sprintf");
 
 	mkdir_p(bpath, 0755);
-
 	mount_help("", bpath, "tmpfs", MS_NOSUID | MS_NODEV, NULL);
 
 	if (chdir(bpath) == -1)

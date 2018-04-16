@@ -39,7 +39,12 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(&ns_args);
+	basic_setup(&ns_args);
+
+	if (ns_args.rootfs)
+		setup_rootfs(&ns_args);
+	else
+		setup_mountns(&ns_args);
 
 	/* only configure network is a new netns is created */
 	if (ns_args.child_args & CLONE_NEWNET)
