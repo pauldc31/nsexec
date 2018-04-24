@@ -21,6 +21,7 @@ Dependencies:
 	libseccomp
 	libselinux (optinal)
 	libuuid
+	shadow-utils (for new{u,g}idmap
 
 nsexec uses meson to as build system. To build and install nsexec:
 
@@ -33,6 +34,17 @@ nsexec uses meson to as build system. To build and install nsexec:
 ### Using nsexec
 ----------------
 
-Where is a small example of how to start a new bash with all namespaces active:
+First, you need to map your user inside /etc/subuid and /etc/subgid, like below:
+<your_username>:1000:65536
+
+For more information about uidmaps, take a look [here](https://stgraber.org/2017/06/15/custom-user-mappings-in-lxd-containers/)
+
+After this is set, you can run the command below, to receive a new bash with
+**root** user and all namespace active:
 
 	nsexec --unshare-all
+
+If you have downloaded a rootfs, make sure the owner of the all files of that
+rootfs belongs to <your_username> and execute:
+
+	nsexec --unshare-all --rootfs <path_to_your_rootfs>
