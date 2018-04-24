@@ -39,7 +39,12 @@ static int child_func(void)
 	if (read(wait_fd, &val, sizeof(val)) < 0)
 		err(EXIT_FAILURE, "read error before setting mountns");
 
-	setup_mountns(&ns_args);
+	basic_setup(&ns_args);
+
+	if (ns_args.rootfs)
+		setup_rootfs(&ns_args);
+	else
+		setup_mountns(&ns_args);
 
 	/* only configure network is a new netns is created */
 	if (ns_args.child_args & CLONE_NEWNET)
@@ -281,9 +286,7 @@ int main(int argc, char **argv)
 	else if (pid == 0)
 		child_func();
 
-	/* parent, set user mapping and the necessary network */
-	set_maps(pid, "uid_map", &ns_args);
-	set_maps(pid, "gid_map", &ns_args);
+	set_newuid_maps(pid);
 
 	if (ns_args.child_args & CLONE_NEWNET)
 		create_bridge(pid, ns_args.veth_h, ns_args.veth_ns);
