@@ -35,7 +35,8 @@ nsexec uses meson to as build system. To build and install nsexec:
 ----------------
 
 First, you need to map your user inside /etc/subuid and /etc/subgid, like below:
-<your_username>:1000:65536
+
+	<your_username>:1000:65536
 
 For more information about uidmaps, take a look [here](https://stgraber.org/2017/06/15/custom-user-mappings-in-lxd-containers/)
 
