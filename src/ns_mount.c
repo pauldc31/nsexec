@@ -208,11 +208,11 @@ void set_newuid_maps(pid_t pid)
 {
 	char cmd[1024];
 
-	sprintf(cmd, "newuidmap %d 0 1000 65536", pid);
+	sprintf(cmd, "newuidmap %d 0 %d 65536", pid, getuid());
 	if (system(cmd) == -1)
 		err(EXIT_FAILURE, "newuidmap");
 
-	sprintf(cmd, "newgidmap %d 0 1000 65536", pid);
+	sprintf(cmd, "newgidmap %d 0 %d 65536", pid, getuid());
 	if (system(cmd) == -1)
 		err(EXIT_FAILURE, "newgidmap");
 }
