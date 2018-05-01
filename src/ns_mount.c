@@ -17,10 +17,18 @@
 
 #include "helper.h"
 
+struct mount_setup {
+	char *dirn;
+	char *mntd;
+};
+
 /* simplify error handling and boilerplate mount code */
 static void mount_help(char *src, char *dst, char *typ, long flags, char *data)
 {
-	if (mount(src, dst, typ, flags, data) < 0)
+	int ret;
+
+	ret = mount(src, dst, typ, flags, data);
+	if (ret < 0 && errno != ENOENT)
 		err(EXIT_FAILURE, "mount %s -> %s, type: %s", src, dst, typ);
 }
 
@@ -124,6 +132,32 @@ static void execute_additional_links(struct NS_ARGS *ns_args)
 
 	for (iter = ns_args->link_list; iter; iter = iter->next)
 		symlink_help(iter->src, iter->dst);
+}
+
+static void hide_insecure_files(struct NS_ARGS *ns_args)
+{
+	/* hide the following /proc entries, because can expose unneeded info */
+	/* runc does the same */
+	struct mount_setup *mp, mount_list[] = {
+		{"/proc/sys", "tmpfs"},
+		{"/proc/config.gz", NULL},
+		{"/proc/sysrq-trigger", NULL},
+		{"/proc/kmsg", NULL},
+		{"/proc/kallsyms", NULL},
+		{"/proc/kcore", NULL},
+		{NULL, NULL}
+	};
+
+	if (ns_args->child_args & CLONE_NEWPID) {
+		for (mp = mount_list; mp->dirn; mp++) {
+			if (mp->mntd)
+				mount_help("tmpfs", mp->dirn, "tmpfs",
+					MS_RDONLY, "");
+			else
+				mount_help("/dev/null", mp->dirn, "",
+					MS_BIND, "");
+		}
+	}
 }
 
 static void mount_new_proc(struct NS_ARGS *ns_args, char *bpath)
@@ -252,15 +286,11 @@ void setup_rootfs(struct NS_ARGS *ns_args)
 			"newinstance,ptmxmode=0666,mode=620");
 
 	execute_additional_links(ns_args);
+	hide_insecure_files(ns_args);
 }
 
 void setup_mountns(struct NS_ARGS *ns_args)
 {
-	struct mount_setup {
-		char *dirn;
-		char *mntd;
-	};
-
 	struct mount_setup *mp, mount_list[] = {
 		{"newroot", NULL},
 		{"newroot/bin", "oldroot/bin"},
@@ -358,6 +388,7 @@ void setup_mountns(struct NS_ARGS *ns_args)
 		err(EXIT_FAILURE, "chdir /");
 
 	symlink_help("/dev/pts/ptmx", "/dev/ptmx");
+	hide_insecure_files(ns_args);
 
 	execute_additional_links(ns_args);
 
