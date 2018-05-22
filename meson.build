@@ -13,7 +13,7 @@ runcmd = run_command(pkgconfig
 install_data(sources: 'data/completions/bash/nsexec'
 	, install_dir: runcmd.stdout().strip())
 
-meson.add_install_script('data/post-install.sh')
+#meson.add_install_script('data/post-install.sh')
 
 cc = meson.get_compiler('c')
 c_args = [
