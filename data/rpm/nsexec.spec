@@ -30,6 +30,8 @@ nsexec desc
 /usr/bin/nsexec
 /usr/bin/nsexec_nic
 /usr/share/bash-completion/completions/nsexec
+
+%caps(cap_net_admin=pe) %{_bindir}/nsexec_nic
 # FIXME: check these files
 #%license LICENSE.txt
 #rm -rf $RPM_BUILD_ROOT
