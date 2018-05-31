@@ -1,0 +1,3 @@
+#!/bin/bash
+# nsexec uses /usr as prefix by default
+setcap cap_net_admin+ep "$DESTDIR"/usr/bin/nsexec_nic
