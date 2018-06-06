@@ -21,7 +21,7 @@ Dependencies:
 	libseccomp
 	libselinux (optinal)
 	libuuid
-	shadow-utils (for new{u,g}idmap
+	shadow-utils (for new{u,g}idmap)
 
 nsexec uses meson to as build system. To build and install nsexec:
 
@@ -34,13 +34,17 @@ nsexec uses meson to as build system. To build and install nsexec:
 ### Using nsexec
 ----------------
 
-First, you need to map your user inside /etc/subuid and /etc/subgid, like below:
+nsexec makes use of a bridge interface called **virbr0**. If you are using
+Ubuntu, the package **libvirt-bin** will create the interface for you. So, just
+install **libvirt-bin** and you are good.
+
+Now you need to map your user inside /etc/subuid and /etc/subgid, like below:
 
 	<your_username>:1000:65536
 
 For more information about uidmaps, take a look [here](https://stgraber.org/2017/06/15/custom-user-mappings-in-lxd-containers/)
 
-After this is set, you can run the command below, to receive a new bash with
+Finnaly, by running the command bellow, you will receive a new bash with
 **root** user and all namespace active:
 
 	nsexec --unshare-all

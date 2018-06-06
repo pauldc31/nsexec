@@ -1,0 +1,25 @@
+Source: nsexec
+Maintainer: Marcos Paulo de Souza <marcos.souza.org@gmail.com>
+Section: misc
+Priority: optional
+Standards-Version: 4.1.2
+Build-Depends: libseccomp-dev (>= 2.3.1),
+	libcap-dev (>= 2.25),
+	uuid-dev (>= 2.31.1),
+	libnl-route-3-dev (>= 3.2.29),
+	pkg-config (>= 0.29.1),
+	meson (>= 0.45.1),
+	debhelper (>= 10.3)
+
+
+Package: nsexec
+Architecture: amd64
+Depends: ${shlibs:Depends},
+	libseccomp2 (>= 2.3.1),
+	libcap2 (>= 2.25),
+	libuuid1 (>= 2.31.1),
+	libnl-3-200 (>= 3.2.29),
+	libnl-route-3-200 (>= 3.2.29)
+Description: is an experiment to execute confined processes (containers)
+ By using namespaces (net, user, mount, pid, uts), nsexec can start a process is a completely
+ isolated environment. Not production ready, it's an experiment only.
