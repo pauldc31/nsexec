@@ -41,12 +41,8 @@ add_project_link_arguments('-fstack-protector-strong', '-flto'
 
 dep_libnl = dependency('libnl-route-3.0')
 dep_uuid = dependency('uuid')
-dep_libcap = dependency('libcap', required: false)
+dep_libcap = dependency('libcap')
 dep_seccomp = dependency('libseccomp')
-
-if not dep_libcap.found()
-	dep_libcap = dependency('libcap-ng')
-endif
 
 libs = [dep_libnl, dep_uuid, dep_libcap, dep_seccomp]
 
