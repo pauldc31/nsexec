@@ -42,6 +42,7 @@ bool default_whitelist(void)
 		SCMP_SYS(clone),
 		SCMP_SYS(close),
 		SCMP_SYS(connect),
+		SCMP_SYS(creat),
 		SCMP_SYS(dup),
 		SCMP_SYS(dup2),
 		SCMP_SYS(dup3),
